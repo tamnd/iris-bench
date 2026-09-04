@@ -31,6 +31,14 @@ allow = [
   "Zlib",
 ]
 
+# webpki-roots is the Mozilla root certificate store. What it ships is data rather
+# than code, and CDLA-Permissive-2.0 is a data licence, which is why it is not in
+# the general allow list. Scoping the exception to the one crate means a future
+# dependency under the same licence still has to be looked at by a person.
+[[licenses.exceptions]]
+name = "webpki-roots"
+allow = ["CDLA-Permissive-2.0"]
+
 # The harness itself must not link anything under a strong copyleft licence.
 # Systems under test are a different matter: they run in their own processes,
 # and a GPL licensed database is perfectly fine to benchmark.
