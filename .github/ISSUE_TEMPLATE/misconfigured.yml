@@ -1,0 +1,33 @@
+name: We configured a system wrong
+description: You maintain or know a system in the matrix and its configuration is wrong.
+labels: ["type: fairness", "status: needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most valuable issue anyone can open here. Most results of the form "system X is slow" are configuration errors, and the people who know system X spot them in minutes. It will be treated as a correction, not as a complaint.
+  - type: input
+    id: system
+    attributes:
+      label: Which system
+    validations:
+      required: true
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What is wrong with the configuration
+      description: Point at the driver's CONFIG.md if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: right
+    attributes:
+      label: What it should be
+      description: Settings, and ideally a link to the documentation or benchmark script they come from.
+    validations:
+      required: true
+  - type: input
+    id: affected
+    attributes:
+      label: Published results affected
+      description: Run identifiers, if you know them. We can work them out if not.

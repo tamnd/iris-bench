@@ -1,0 +1,10 @@
+/target
+**/target
+/corpus
+/results
+/store
+*.profraw
+lcov.info
+.DS_Store
+.idea/
+.vscode/

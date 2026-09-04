@@ -1,0 +1,90 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "drivers/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.98"
+license = "Apache-2.0"
+repository = "https://github.com/tamnd/iris-bench"
+homepage = "https://github.com/tamnd/iris-bench"
+authors = ["iris-bench contributors"]
+keywords = ["benchmark", "columnar", "parquet", "reproducibility", "olap"]
+categories = ["development-tools::profiling", "database"]
+readme = "README.md"
+publish = false
+
+[workspace.dependencies]
+bench-core = { path = "crates/bench-core", version = "0.0.0" }
+bench-corpus = { path = "crates/bench-corpus", version = "0.0.0" }
+bench-driver = { path = "crates/bench-driver", version = "0.0.0" }
+bench-env = { path = "crates/bench-env", version = "0.0.0" }
+bench-report = { path = "crates/bench-report", version = "0.0.0" }
+bench-run = { path = "crates/bench-run", version = "0.0.0" }
+bench-store = { path = "crates/bench-store", version = "0.0.0" }
+
+anyhow = "1.0.104"
+arrow-array = "59.3.0"
+arrow-schema = "59.3.0"
+blake3 = "1.8.7"
+bytes = "1.12.1"
+camino = "1.2.5"
+clap = { version = "4.6.6", features = ["derive", "wrap_help"] }
+comfy-table = "8.0.0"
+flate2 = "1.1.10"
+hdrhistogram = "7.6.0"
+hex = "0.4.3"
+indexmap = "2.14.1"
+jiff = "0.2.35"
+libc = "0.2.189"
+object_store = "0.14.1"
+parquet = "59.3.0"
+rand = "0.10.2"
+rand_chacha = "0.10.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+statrs = "0.19.1"
+sysinfo = "0.39.6"
+tar = "0.4.46"
+thiserror = "2.0.20"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }
+toml = "1.1.5"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+ulid = "3.0.0"
+ureq = "3.4.0"
+walkdir = "2.5.0"
+
+insta = "1.48.0"
+proptest = "1.11.0"
+tempfile = "3.27.0"
+
+[workspace.lints.rust]
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unreachable_pub = "warn"
+unsafe_op_in_unsafe_fn = "deny"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+cast_possible_truncation = "warn"
+cast_precision_loss = "warn"
+dbg_macro = "warn"
+float_cmp = "warn"
+missing_panics_doc = "warn"
+mod_module_files = "warn"
+multiple_crate_versions = "allow"
+todo = "warn"
+undocumented_unsafe_blocks = "deny"
+
+# A harness that measures other people's code has to be built the same way every
+# time, or the harness becomes part of what is being measured.
+[profile.release]
+codegen-units = 1
+lto = "thin"
+debug = "line-tables-only"

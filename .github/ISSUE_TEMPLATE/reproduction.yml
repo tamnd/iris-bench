@@ -1,0 +1,32 @@
+name: A published number does not reproduce
+description: You ran a reproduction bundle and got a different answer.
+labels: ["type: reproduction", "status: needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If a number published here cannot be reproduced from its bundle, that is our bug and it gets tracked like any other. It will be recorded as a correction whether or not we end up agreeing with you.
+  - type: input
+    id: run
+    attributes:
+      label: Run identifier from the bundle
+    validations:
+      required: true
+  - type: textarea
+    id: got
+    attributes:
+      label: What you got
+      description: The number, the spread, and how many repetitions.
+    validations:
+      required: true
+  - type: input
+    id: machine
+    attributes:
+      label: Your machine
+      description: CPU model, core count, memory, storage, operating system.
+    validations:
+      required: true
+  - type: textarea
+    id: deviations
+    attributes:
+      label: Anything you had to change to make it run

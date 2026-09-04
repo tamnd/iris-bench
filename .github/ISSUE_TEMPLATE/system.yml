@@ -1,0 +1,34 @@
+name: Add a system or format
+description: Propose a system, engine or storage format for the matrix.
+labels: ["type: driver"]
+body:
+  - type: input
+    id: system
+    attributes:
+      label: What to add
+    validations:
+      required: true
+  - type: dropdown
+    id: axis
+    attributes:
+      label: Which axis
+      options:
+        - Storage format
+        - Query engine
+        - Both
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it belongs here
+      description: Ideally: it appears in the literature this repository reproduces, or it is what people actually deploy.
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Where its recommended configuration comes from
+      description: A link to the maintainer's documentation or their own benchmark scripts. A driver without this cannot be added.
+    validations:
+      required: true

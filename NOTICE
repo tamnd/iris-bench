@@ -1,0 +1,12 @@
+iris-bench
+Copyright 2026 iris-bench contributors
+
+This product includes software developed by the iris-bench contributors.
+
+TPC-H and TPC-DS are trademarks of the Transaction Processing Performance
+Council. Any results published here that use those workloads are derived from
+the TPC-H or TPC-DS specifications, are not audited, and are not comparable
+with official TPC Results.
+
+Corpora fetched or mirrored by this software carry their own licences. See
+docs/LICENSING.md and the per-corpus manifests.

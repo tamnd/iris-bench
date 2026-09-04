@@ -1,0 +1,20 @@
+[package]
+name = "driver-null"
+description = "A driver that does nothing, used to measure what the harness itself costs."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme.workspace = true
+publish.workspace = true
+
+[dependencies]
+bench-driver.workspace = true
+
+[lints]
+workspace = true

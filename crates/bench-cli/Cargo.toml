@@ -1,0 +1,31 @@
+[package]
+name = "iris-bench-cli"
+description = "Command line tool for running, reproducing and reporting iris-bench results."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bench-corpus.workspace = true
+bench-env.workspace = true
+bench-report.workspace = true
+bench-run.workspace = true
+bench-store.workspace = true
+clap.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "iris-bench"
+path = "src/main.rs"

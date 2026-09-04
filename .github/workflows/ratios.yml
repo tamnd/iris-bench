@@ -1,0 +1,75 @@
+name: Ratios
+
+# Hosted runners are shared machines with a run to run spread larger than most
+# effects worth detecting, so nothing here is publishable and none of it reaches
+# the results store. What survives that noise is a ratio taken within one run on
+# one machine at one moment: WebAssembly against native, or guarded against
+# unguarded. Those are exactly the quantities the design decisions turn on, and
+# they are stable enough to alert on.
+#
+# Absolute numbers come from the machines described in docs/MACHINES.md, and
+# they come from a deliberate release step with a person reading the diff.
+
+on:
+  schedule:
+    - cron: "20 4 * * *"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Why this run was triggered by hand
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ratios
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  IRIS_BENCH_PUBLISHABLE: "false"
+
+jobs:
+  ratios:
+    name: Within-run ratios on ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x86_64, os: ubuntu-24.04 }
+          - { name: linux-aarch64, os: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: ratios-${{ matrix.name }}
+      - name: Record what this machine actually is
+        run: |
+          {
+            echo "## ${{ matrix.name }}"
+            echo '```'
+            uname -srm
+            grep -m1 'model name' /proc/cpuinfo 2>/dev/null || true
+            echo "threads: $(nproc)"
+            echo "isa: $(grep -m1 ^flags /proc/cpuinfo 2>/dev/null | tr ' ' '\n' | grep -E '^(avx|sve|neon)' | sort -u | tr '\n' ' ')"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Build the harness
+        run: cargo build --release --locked --workspace
+      - name: Ratios
+        run: |
+          echo "The ratio suite lands with milestone B6. Until then this job"
+          echo "exists to keep the release build honest on both architectures."
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ratios-${{ matrix.name }}
+          path: |
+            target/ratios/**
+          retention-days: 14
+          if-no-files-found: ignore

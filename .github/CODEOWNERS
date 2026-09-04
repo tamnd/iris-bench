@@ -1,0 +1,8 @@
+# The timing loop and the environment gates decide whether every other number in
+# this repository means anything, so they get a review even when nothing else does.
+/crates/bench-core/   @tamnd
+/crates/bench-env/    @tamnd
+/ci/                  @tamnd
+/docs/METHODOLOGY.md  @tamnd
+/docs/MACHINES.md     @tamnd
+/.github/workflows/   @tamnd
