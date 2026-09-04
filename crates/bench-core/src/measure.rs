@@ -180,7 +180,7 @@ impl Timing {
         let mut series = Series::new(self.bootstrap);
         loop {
             series.push(body());
-            if series.len() % every == 0 && self.stop.should_stop(&series) {
+            if series.len().is_multiple_of(every) && self.stop.should_stop(&series) {
                 return series;
             }
         }
