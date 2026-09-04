@@ -43,10 +43,10 @@ jobs:
           - { name: linux-x86_64, os: ubuntu-24.04 }
           - { name: linux-aarch64, os: ubuntu-24.04-arm }
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@v2
         with:
           key: ratios-${{ matrix.name }}
       - name: Record what this machine actually is
@@ -66,7 +66,7 @@ jobs:
         run: |
           echo "The ratio suite lands with milestone B6. Until then this job"
           echo "exists to keep the release build honest on both architectures."
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@v7
         with:
           name: ratios-${{ matrix.name }}
           path: |
