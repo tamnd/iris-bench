@@ -84,7 +84,7 @@ Change point detection, the site, the claim ledger, and the export into the `iri
 
 | After | Question | If the answer is bad |
 |---|---|---|
-| B0 | Is the noise floor under 1%? | Above 2% and the 5% thresholds cannot be settled here. Get better hardware before building anything |
+| B0 | Is the noise floor under 1%? | Above 2% and the 5% thresholds cannot be settled here. Get better hardware before building anything. Answered above: one class is under, on one operating system, and it is 1.05% |
 | B2 | Do we land within 25% of the public ClickBench leaderboard? | The harness has a systematic error and nothing downstream is trustworthy |
 | B3 | Does the ALP table reproduce within two percent? | Compression ratios are deterministic, so a failure means a corpus or reader bug |
 | B3 | Does F3 hold on arm64? | Either outcome is publishable, and if F3 wins then `iris` has design lessons to take |
