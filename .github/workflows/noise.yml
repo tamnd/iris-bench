@@ -69,13 +69,22 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Build the harness
         run: cargo build --release --locked -p iris-bench-cli
+      # Measured with --anyway, because the runner agent is on a processor for
+      # the whole job and the busy-processes gate can never pass on a hosted
+      # runner. That is not a reason to skip the measurement, it is the machine
+      # as it is rented, and the floor of the machine as it is rented is the
+      # only one worth having for a class that only exists inside a job.
+      #
+      # pipefail is what makes a refusal fail the job. Without it the exit
+      # status would be tee's and a probe that refused would look like a pass.
       - name: Measure the floor
         env:
           ROUNDS: ${{ inputs.rounds || '40' }}
           SAMPLES: ${{ inputs.samples || '100' }}
         run: |
+          set -o pipefail
           {
             echo '```'
-            ./target/release/iris-bench noise --rounds "$ROUNDS" --samples "$SAMPLES"
+            ./target/release/iris-bench noise --rounds "$ROUNDS" --samples "$SAMPLES" --anyway
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
