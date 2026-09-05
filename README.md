@@ -32,7 +32,7 @@ Public BI has been both the design input and the evaluation set for six years of
 
 Pre-alpha. B0 is done as of `v0.1.0`, so the measuring apparatus exists and the benchmarks do not. Milestones B0 through B8 are [public](https://github.com/tamnd/iris-bench/milestones) with one issue per exit gate.
 
-What B0 established is in `docs/ROADMAP.md` under that milestone, and the short version is that this fleet can measure, on one machine, for ratios always and for durations under a gate. The noise floor is 1.05% on the one eligible role and over two percent everywhere else, and the harness adds 41.1 ns to a sample, which is under one percent of anything longer than 4.1 microseconds. `iris-bench check`, `noise`, `overhead` and `resident` run today. Nothing else does.
+What B0 established is in `docs/ROADMAP.md` under that milestone, and the short version is that this fleet can measure, on one machine, for ratios always and for durations under a gate. The noise floor is 1.05% on the one eligible role and over two percent everywhere else, and the harness adds 41.1 ns to a sample, which is under one percent of anything longer than 4.1 microseconds. `iris-bench check`, `noise`, `overhead`, `resident` and `corpus` run today. Nothing else does.
 
 B0 through B4 need no `iris` code to exist, which is deliberate. If `iris` is never built, the reproduction of the published figures and the storage tier study still stand on their own.
 
@@ -60,6 +60,14 @@ cargo test --workspace
 ```
 
 The harness refuses to produce a publishable number on a machine that fails the eligibility gates, and it says which gate failed. That is not configurable.
+
+Getting a corpus onto the machine is one command, and it is worth pointing the store somewhere with room because ClickBench alone is 13.8 GiB.
+
+```
+cargo run -p iris-bench-cli -- corpus clickbench-hits --store /var/tmp/iris-corpus
+```
+
+The digest is checked in the same pass that writes the file, so bytes that are not what the manifest promised never land in the store. The asserted row and column counts are checked after, which is what catches a download that stopped early and still parses. `docs/CORPORA.md` is the format.
 
 ## Machines
 

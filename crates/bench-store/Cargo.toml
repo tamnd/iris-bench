@@ -15,7 +15,9 @@ publish.workspace = true
 
 [dependencies]
 bench-core.workspace = true
-parquet.workspace = true
+# This one writes column data rather than reading footers, so it needs the Arrow bridge and a
+# codec. Zstd because it is what every result file here is written with.
+parquet = { workspace = true, features = ["arrow", "zstd"] }
 arrow-array.workspace = true
 arrow-schema.workspace = true
 serde.workspace = true

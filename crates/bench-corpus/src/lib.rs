@@ -15,14 +15,25 @@
 //! are then referring to the same bytes rather than to the same file name, which is the property
 //! that makes a result worth re-running.
 //!
-//! Fetching and generation are not implemented yet. See B1 in `docs/ROADMAP.md`.
+//! # What a fetch guarantees
+//!
+//! [`fetch::corpus`] downloads what a manifest names and hashes it in the same pass that writes it,
+//! so bytes that are not what was promised never reach the store. [`shape::check`] then reads the
+//! Parquet footers and refuses a corpus that is not the row and column count the manifest asserted,
+//! which is the check that catches a download that stopped early and still parses.
+//!
+//! Generation is not implemented yet. See B1 in `docs/ROADMAP.md`.
 
 mod digest;
+pub mod fetch;
 mod manifest;
+pub mod shape;
 mod store;
 
 pub use digest::{Digest, DigestError};
+pub use fetch::{FetchError, Fetched, Progress};
 pub use manifest::{Assertions, Category, Corpus, Entry, Manifest, ManifestError};
+pub use shape::{Shape, ShapeError};
 pub use store::{Inserted, Store, StoreError};
 
 /// The version of this crate, as reported by build metadata.

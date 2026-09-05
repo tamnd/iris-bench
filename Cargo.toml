@@ -40,7 +40,9 @@ iris-source = "0.5.0"
 jiff = "0.2.35"
 libc = "0.2.189"
 object_store = "0.14.1"
-parquet = "59.3.0"
+# Off by default so that a crate which only reads footers does not drag in every codec and the
+# whole Arrow bridge. Anything that reads actual column data asks for what it needs.
+parquet = { version = "59.3.0", default-features = false }
 rand = "0.10.2"
 rand_chacha = "0.10.0"
 serde = { version = "1.0.229", features = ["derive"] }

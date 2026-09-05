@@ -210,6 +210,65 @@ impl Store {
         self.insert_file(source)
     }
 
+    /// Streams bytes in, hashing as they arrive, and keeps them only if they are what was promised.
+    ///
+    /// This is what a fetch uses. [`Self::insert_verified`] reads its source three times, once to
+    /// hash and twice to copy, which is the right shape for a file already on disk and the wrong
+    /// one for fifteen gigabytes arriving over a network. Here the bytes are hashed and written in
+    /// the same pass, and a download that does not match is deleted rather than renamed, so a
+    /// mismatch never reaches a path that asserts its own content.
+    ///
+    /// # Errors
+    ///
+    /// If the stream cannot be read, the object cannot be written, or the digest is not `wanted`.
+    pub fn insert_stream(
+        &self,
+        mut reader: impl Read,
+        wanted: &Digest,
+    ) -> Result<Inserted, StoreError> {
+        if self.contains(wanted) {
+            return Ok(Inserted {
+                digest: *wanted,
+                deduplicated: true,
+            });
+        }
+        let mut hasher = blake3::Hasher::new();
+        self.write(wanted, |sink| {
+            let mut buffer = vec![0_u8; CHUNK];
+            loop {
+                let read = reader.read(&mut buffer)?;
+                if read == 0 {
+                    return Ok(());
+                }
+                hasher.update(&buffer[..read]);
+                sink.write_all(&buffer[..read])?;
+            }
+        })?;
+
+        let found = Digest::from_bytes(*hasher.finalize().as_bytes());
+        if found == *wanted {
+            return Ok(Inserted {
+                digest: found,
+                deduplicated: false,
+            });
+        }
+
+        // The object was renamed into place under the wanted name before this was known, because
+        // the digest is only final once the last byte has arrived. Removing it here is what keeps
+        // the invariant true: an object in this store hashes to its own name.
+        let path = self.path(wanted);
+        std::fs::remove_file(&path).map_err(|source| StoreError::Io {
+            doing: "removing",
+            path: path.display().to_string(),
+            source,
+        })?;
+        Err(StoreError::DigestMismatch {
+            path: path.display().to_string(),
+            wanted: *wanted,
+            found,
+        })
+    }
+
     /// Opens an object for reading.
     ///
     /// # Errors
@@ -305,6 +364,15 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A reader that panics if anything reads it, for asserting that nothing did.
+    struct Never;
+
+    impl Read for Never {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            panic!("the store read a stream it already had");
+        }
+    }
 
     fn store() -> (tempfile::TempDir, Store) {
         let dir = tempfile::tempdir().unwrap();
@@ -402,6 +470,58 @@ mod tests {
             store.insert_verified(&source, &promised).unwrap().digest,
             promised
         );
+    }
+
+    #[test]
+    fn a_stream_that_is_what_was_promised_lands_in_the_store() {
+        let (_dir, store) = store();
+        // Larger than one chunk, so the loop that hashes and writes runs more than once and the
+        // hasher is being fed in pieces rather than all at once.
+        let bytes: Vec<u8> = (0..3_000_000_u32).map(|i| (i % 251) as u8).collect();
+        let promised = Digest::of_bytes(&bytes);
+
+        let inserted = store.insert_stream(&bytes[..], &promised).unwrap();
+        assert_eq!(inserted.digest, promised);
+        assert!(!inserted.deduplicated);
+
+        let mut back = Vec::new();
+        store
+            .open_object(&promised)
+            .unwrap()
+            .read_to_end(&mut back)
+            .unwrap();
+        assert_eq!(back, bytes);
+    }
+
+    #[test]
+    fn a_stream_that_is_not_what_was_promised_leaves_nothing_behind() {
+        let (_dir, store) = store();
+        let promised = Digest::of_bytes(b"what was promised");
+        let error = store
+            .insert_stream(&b"what actually arrived"[..], &promised)
+            .unwrap_err();
+
+        let message = format!("{error}");
+        assert!(message.contains(&promised.to_hex()));
+        assert!(message.contains(&Digest::of_bytes(b"what actually arrived").to_hex()));
+
+        // The object was renamed into place before the digest was known, because the digest is only
+        // final once the last byte has arrived. What matters is that it is gone again.
+        assert!(!store.contains(&promised));
+        let directory = store.path(&promised).parent().unwrap().to_owned();
+        let left: Vec<_> = std::fs::read_dir(&directory)
+            .map(|entries| entries.filter_map(Result::ok).collect())
+            .unwrap_or_default();
+        assert!(left.is_empty(), "left behind {left:?}");
+    }
+
+    #[test]
+    fn a_stream_whose_bytes_are_already_there_is_not_read_at_all() {
+        let (_dir, store) = store();
+        let promised = store.insert_bytes(b"already here").unwrap().digest;
+        // If this passes, dedup happened before anything was read, which is the whole reason a
+        // fetch asks the store first rather than downloading and then noticing.
+        assert!(store.insert_stream(Never, &promised).unwrap().deduplicated);
     }
 
     #[test]

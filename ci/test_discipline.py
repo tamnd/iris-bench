@@ -124,6 +124,17 @@ def main() -> int:
         "'description'",
     )
     expect_complaint(
+        "a fetched corpus with nowhere to fetch from",
+        GOOD.replace('"https://example.invalid/example.parquet"', '"tpch-dbgen -s 20"'),
+        "nowhere to fetch it from",
+    )
+    expect_clean(
+        "a fetched corpus whose entry says where its bytes are",
+        GOOD.replace('"https://example.invalid/example.parquet"', '"tpch-dbgen -s 20"').replace(
+            "bytes = 1024", 'bytes = 1024\nurl = "https://example.invalid/example.parquet"'
+        ),
+    )
+    expect_complaint(
         "a manifest that is not TOML",
         "this is not toml at all {{",
         "not valid TOML",

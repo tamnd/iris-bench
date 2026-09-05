@@ -1,0 +1,25 @@
+# ClickBench hits, the single file Parquet distribution.
+#
+# The row and column counts are asserted rather than assumed. A download that stops early and still
+# parses is the failure that quietly invalidates a month of results, and the digest catches that for
+# a file while saying nothing about a corpus assembled from the wrong set of them.
+#
+# 105 columns is also why a fixed size 64 bit projection mask is not an acceptable ABI design, which
+# is a finding this repository hands back to iris. A finding is worth more when the number behind it
+# is checked on every run than when it is recalled from a page somebody read once.
+
+[corpus]
+name = "clickbench-hits"
+description = "Anonymised web analytics traffic, the corpus every ClickBench result is measured on"
+source = "https://datasets.clickhouse.com/hits_compatible/hits.parquet"
+licence = "Apache-2.0"
+category = "fetch"
+
+[[files]]
+path = "hits.parquet"
+blake3 = "0645797d99f4f15757cb3a336b2d164ecf34de53a61914b3c5102c3267fe4ec6"
+bytes = 14779976446
+
+[assertions]
+rows = 99997497
+columns = 105
