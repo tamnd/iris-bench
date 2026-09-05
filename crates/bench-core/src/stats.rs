@@ -75,6 +75,138 @@ impl Summary {
     }
 }
 
+/// What a comparison of two series came to, as a ratio of the first to the second.
+///
+/// Separate from [`Summary`] because a ratio has no units, no minimum worth printing and no mean
+/// worth printing. What a reader wants from it is the middle and the interval, and whether that
+/// interval clears whatever bar the comparison was set against.
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+pub struct Ratio {
+    /// How many pairs went into this.
+    pub n: usize,
+    /// The ratio of the two medians as measured.
+    pub ratio: f64,
+    /// The low end of the confidence interval on the ratio.
+    pub lo: f64,
+    /// The high end of the confidence interval on the ratio.
+    pub hi: f64,
+    /// Which interval `lo` and `hi` describe, copied from the [`Bootstrap`] settings.
+    pub confidence: f64,
+}
+
+impl Ratio {
+    /// Whether the whole interval sits within `fraction` of parity.
+    ///
+    /// This is the question a gate like "within three percent" is actually asking, and it is asked
+    /// of the interval rather than of the point estimate on purpose. A measured ratio of 1.02
+    /// against a three percent bar means nothing on its own, because the interval around it may
+    /// well run past 1.10. Reading the point estimate against the bar and ignoring the interval is
+    /// the most common way a performance claim turns out to be noise.
+    ///
+    /// Note which way the burden falls. This returns false when the data cannot tell, which is the
+    /// same answer it gives when the data says no. A gate keyed on it therefore fails on a
+    /// measurement too weak to decide, rather than passing on one, and the way to turn a false into
+    /// a true is more samples or a quieter machine.
+    #[must_use]
+    pub fn within(&self, fraction: f64) -> bool {
+        self.lo >= 1.0 - fraction && self.hi <= 1.0 + fraction
+    }
+}
+
+/// The ratio of two medians, with a confidence interval, from measurements taken in pairs.
+///
+/// Paired rather than independent, and that is the whole design. `a[i]` and `b[i]` are meant to be
+/// the two things measured back to back, so that a machine drifting over the course of a run drifts
+/// under both of them and largely divides out. Summarising the two series separately and dividing
+/// the medians throws that away, and on a machine whose floor is a percent or two it throws away
+/// more than the effect most comparisons here are looking for.
+///
+/// The resampling draws pair indices, not values, which is what keeps the pairing intact through
+/// the bootstrap. Resampling the two series independently would produce a narrower interval that
+/// describes a comparison nobody ran.
+///
+/// Returns `None` for empty input, and for a resample of `b` whose median is zero, because a ratio
+/// against nothing is not a number this harness should print.
+///
+/// # Panics
+///
+/// Panics if the two series are different lengths, because unequal lengths mean the caller does not
+/// have pairs and the result would be a comparison of one thing against a different thing. Panics
+/// on a sample that is not finite, for the same reason [`summarise`] does.
+#[must_use]
+pub fn paired_ratio(a: &[f64], b: &[f64], boot: Bootstrap) -> Option<Ratio> {
+    assert_eq!(
+        a.len(),
+        b.len(),
+        "a paired comparison needs the same number of samples on both sides, and these are not \
+         pairs"
+    );
+    if a.is_empty() {
+        return None;
+    }
+    assert!(
+        a.iter().chain(b).all(|s| s.is_finite()),
+        "a timing sample was not a finite number, which means the clock or the harness is broken"
+    );
+
+    let n = a.len();
+    let observed = ratio_of(a, b)?;
+
+    if n == 1 || boot.resamples == 0 {
+        // One pair says nothing about its own spread, and a zero width interval on it would be a
+        // lie. Reporting the point twice and letting `n` warn the reader is what `summarise` does.
+        return Some(Ratio {
+            n,
+            ratio: observed,
+            lo: observed,
+            hi: observed,
+            confidence: boot.confidence,
+        });
+    }
+
+    let mut rng = SplitMix64::new(boot.seed);
+    let mut ratios = Vec::with_capacity(boot.resamples as usize);
+    let mut left = vec![0.0; n];
+    let mut right = vec![0.0; n];
+    for _ in 0..boot.resamples {
+        for slot in 0..n {
+            let drawn = rng.below(n);
+            left[slot] = a[drawn];
+            right[slot] = b[drawn];
+        }
+        // A resample whose denominator came out at zero is dropped rather than allowed to become an
+        // infinity that then drags a percentile. With real timings it does not happen at all.
+        if let Some(ratio) = ratio_of(&left, &right) {
+            ratios.push(ratio);
+        }
+    }
+    if ratios.is_empty() {
+        return None;
+    }
+    ratios.sort_by(f64::total_cmp);
+
+    let tail = (1.0 - boot.confidence) / 2.0;
+    Some(Ratio {
+        n,
+        ratio: observed,
+        lo: ratios[quantile_index(ratios.len(), tail)],
+        hi: ratios[quantile_index(ratios.len(), 1.0 - tail)],
+        confidence: boot.confidence,
+    })
+}
+
+/// The median of `a` over the median of `b`, or `None` when the denominator is zero.
+fn ratio_of(a: &[f64], b: &[f64]) -> Option<f64> {
+    let mut left = a.to_vec();
+    let mut right = b.to_vec();
+    let top = median_by_selection(&mut left);
+    let bottom = median_by_selection(&mut right);
+    if bottom.abs() < f64::EPSILON {
+        return None;
+    }
+    Some(top / bottom)
+}
+
 /// Summarises a series.
 ///
 /// Returns `None` for an empty series, because there is no honest summary of nothing.

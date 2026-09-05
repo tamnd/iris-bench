@@ -1,11 +1,13 @@
 //! `iris-bench`, the command line tool.
 //!
-//! Only `check` and `noise` are implemented. See `docs/ROADMAP.md` for the rest.
+//! Only `check`, `noise` and `resident` are implemented. See `docs/ROADMAP.md` for the rest.
 
 mod noise;
+mod resident;
 
 use std::path::PathBuf;
 
+use anyhow::Context as _;
 use bench_env::{Capture, Permit};
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -60,6 +62,40 @@ enum Command {
         /// Run one round and print what it measured, which is how a round is started.
         #[arg(long, hide = true)]
         one_round: bool,
+    },
+    /// Compare a scan of a resident local file against a scan of the same bytes already in memory.
+    ///
+    /// The M4 gate in iris. Unlike `noise`, being over the bar exits non zero, because this is a
+    /// claim the project makes about its own design rather than a property of a machine.
+    Resident {
+        /// How large a file to scan, in mebibytes.
+        #[arg(long, default_value_t = 256)]
+        size: u64,
+        /// How much address space the window reserves, in mebibytes.
+        #[arg(long, default_value_t = 4)]
+        span: u64,
+        /// How large each range a scan asks for is, in kibibytes.
+        #[arg(long, default_value_t = 256)]
+        chunk: u64,
+        /// How many pairs of measurements to take.
+        #[arg(long, default_value_t = 60)]
+        pairs: u32,
+        /// How many scans of each side to run before recording anything.
+        #[arg(long, default_value_t = 3)]
+        warmup: u32,
+        /// How far from the whole buffer path the windowed path may be, as a fraction.
+        #[arg(long, default_value_t = 0.03)]
+        bar: f64,
+        /// Measure even though a gate failed, which produces a working note rather than a result.
+        #[arg(long)]
+        anyway: bool,
+        /// Compare the buffer against a second buffer, which measures this command's own bias.
+        ///
+        /// Nothing about iris is under test in a control run. It answers what the same comparison
+        /// reports when both sides are the same thing, which is the number every other ratio from
+        /// this machine has to be read next to.
+        #[arg(long)]
+        control: bool,
     },
     /// Fetch or generate a corpus and verify it against its manifest.
     Corpus {
@@ -149,6 +185,28 @@ fn main() -> anyhow::Result<()> {
             } else {
                 noise::probe(rounds, samples, warmup, limit, anyway)
             }
+        }
+        Command::Resident {
+            size,
+            span,
+            chunk,
+            pairs,
+            warmup,
+            bar,
+            anyway,
+            control,
+        } => {
+            let mib = 1024 * 1024;
+            resident::gate(
+                size * mib,
+                usize::try_from(span * mib).context("a window span that does not fit in memory")?,
+                usize::try_from(chunk * 1024).context("a range that does not fit in memory")?,
+                pairs,
+                warmup,
+                bar,
+                anyway,
+                control,
+            )
         }
         other => anyhow::bail!("not implemented yet: {other:?}"),
     }
