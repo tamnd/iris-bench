@@ -200,19 +200,19 @@ fn hypervisor() -> Hypervisor {
 fn governor() -> Setting {
     #[cfg(target_os = "linux")]
     {
-        return sysfs("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").map_or_else(
+        sysfs("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").map_or_else(
             || {
                 Setting::Unreadable(
                     "this kernel exposes no cpufreq governor for the first processor".to_owned(),
                 )
             },
             Setting::Reading,
-        );
+        )
     }
 
     #[cfg(target_os = "windows")]
     {
-        return active_power_scheme();
+        active_power_scheme()
     }
 
     #[cfg(not(any(target_os = "linux", target_os = "windows")))]
@@ -261,10 +261,10 @@ fn turbo() -> Setting {
         if let Some(boost) = sysfs("/sys/devices/system/cpu/cpufreq/boost") {
             return Setting::Reading(if boost == "1" { "on" } else { "off" }.to_owned());
         }
-        return Setting::Unreadable(
+        Setting::Unreadable(
             "this kernel exposes neither the intel_pstate turbo switch nor the cpufreq boost switch"
                 .to_owned(),
-        );
+        )
     }
 
     #[cfg(not(target_os = "linux"))]
@@ -287,7 +287,7 @@ fn affinity() -> Setting {
         let Some(status) = sysfs("/proc/self/status") else {
             return Setting::Unreadable("this process has no status file".to_owned());
         };
-        return status
+        status
             .lines()
             .find_map(|line| line.strip_prefix("Cpus_allowed_list:"))
             .map_or_else(
@@ -297,7 +297,7 @@ fn affinity() -> Setting {
                     )
                 },
                 |list| Setting::Reading(list.trim().to_owned()),
-            );
+            )
     }
 
     #[cfg(not(target_os = "linux"))]

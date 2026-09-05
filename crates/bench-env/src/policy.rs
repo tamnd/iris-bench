@@ -104,7 +104,7 @@ fn workstation_ceiling(facts: &Facts) -> Ceiling {
 /// Every gate that can be evaluated on this machine, in the order they are worth reading.
 ///
 /// A setting that could not be read produces no gate at all rather than a third kind of outcome. The
-/// reason is in [`crate::gate`]: an outcome between passing and failing has to be interpreted by
+/// reason is on [`crate::Outcome`]: an outcome between passing and failing has to be interpreted by
 /// every caller, and they will not all interpret it the same way. What the unreadable setting does
 /// instead is lower the ceiling and change the environment hash.
 #[must_use]
