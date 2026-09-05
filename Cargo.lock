@@ -193,7 +193,7 @@ checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
 name = "bench-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -202,7 +202,7 @@ dependencies = [
 
 [[package]]
 name = "bench-corpus"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "blake3",
  "camino",
@@ -220,7 +220,7 @@ dependencies = [
 
 [[package]]
 name = "bench-driver"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bench-core",
  "serde",
@@ -229,7 +229,7 @@ dependencies = [
 
 [[package]]
 name = "bench-env"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bench-core",
  "blake3",
@@ -241,7 +241,7 @@ dependencies = [
 
 [[package]]
 name = "bench-report"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bench-core",
  "bench-store",
@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "bench-run"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bench-core",
  "bench-corpus",
@@ -268,7 +268,7 @@ dependencies = [
 
 [[package]]
 name = "bench-store"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -514,7 +514,7 @@ dependencies = [
 
 [[package]]
 name = "driver-null"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bench-driver",
 ]
@@ -719,7 +719,7 @@ dependencies = [
 
 [[package]]
 name = "iris-bench-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "bench-core",
