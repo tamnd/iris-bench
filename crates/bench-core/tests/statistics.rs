@@ -1,6 +1,6 @@
 //! The summary: the median, the interval around it, and the minimum that is kept out of the way.
 
-use bench_core::{Bootstrap, coefficient_of_variation, summarise};
+use bench_core::{Bootstrap, coefficient_of_variation, paired_ratio, summarise};
 
 fn boot() -> Bootstrap {
     Bootstrap::default()
@@ -140,4 +140,80 @@ fn a_clock_that_did_not_move_is_not_infinitely_noisy() {
     // Dividing by a mean of zero would report this as the noisiest machine ever measured, when what
     // it means is that the workload took no time the clock could see.
     assert!(coefficient_of_variation(&[0.0, 0.0, 0.0]).is_none());
+}
+
+#[test]
+fn nothing_has_no_ratio() {
+    assert!(paired_ratio(&[], &[], boot()).is_none());
+}
+
+#[test]
+fn two_series_that_are_the_same_come_out_at_parity() {
+    let series: Vec<f64> = (0..60).map(|i| 100.0 + f64::from(i % 7)).collect();
+
+    let ratio = paired_ratio(&series, &series, boot()).unwrap();
+    assert!((ratio.ratio - 1.0).abs() < 1e-12, "{}", ratio.ratio);
+    assert!(ratio.within(0.03), "{ratio:?}");
+}
+
+#[test]
+fn a_known_pair_gives_the_ratio_of_the_medians() {
+    // The second series is the first with a tenth added to every sample, so the ratio of the
+    // medians is exactly eleven tenths whichever samples a resample happens to draw.
+    let quick: Vec<f64> = (0..40).map(|i| 100.0 + f64::from(i % 5)).collect();
+    let slow: Vec<f64> = quick.iter().map(|s| s * 1.1).collect();
+
+    let ratio = paired_ratio(&slow, &quick, boot()).unwrap();
+    assert!((ratio.ratio - 1.1).abs() < 1e-12, "{}", ratio.ratio);
+    assert!((ratio.lo - 1.1).abs() < 1e-12, "{}", ratio.lo);
+    assert!((ratio.hi - 1.1).abs() < 1e-12, "{}", ratio.hi);
+    assert!(!ratio.within(0.03), "{ratio:?}");
+}
+
+#[test]
+fn pairing_survives_the_bootstrap() {
+    // Both series drift upward together, which is what a machine warming up during a run looks
+    // like, and the pairs are two percent apart the whole way through. A comparison that keeps the
+    // pairing sees two percent. One that resampled the two series independently would see the
+    // drift as spread and report an interval several times too wide.
+    let base: Vec<f64> = (0..200).map(|i| 100.0 + f64::from(i)).collect();
+    let other: Vec<f64> = base.iter().map(|s| s * 1.02).collect();
+
+    let ratio = paired_ratio(&other, &base, boot()).unwrap();
+    assert!((ratio.hi - ratio.lo) < 1e-9, "{ratio:?}");
+    assert!(ratio.within(0.03), "{ratio:?}");
+}
+
+#[test]
+fn an_interval_that_straddles_the_bar_does_not_pass_it() {
+    // The point estimate is inside three percent and the interval is not. A gate that read the
+    // ratio alone would pass this, and it is exactly the case a gate exists to catch.
+    let base: Vec<f64> = (0..30).map(|i| 100.0 + f64::from(i % 3)).collect();
+    let other: Vec<f64> = base
+        .iter()
+        .enumerate()
+        .map(|(i, s)| if i % 2 == 0 { s * 0.9 } else { s * 1.15 })
+        .collect();
+
+    let ratio = paired_ratio(&other, &base, boot()).unwrap();
+    assert!(!ratio.within(0.03), "{ratio:?}");
+}
+
+#[test]
+fn one_pair_reports_itself_and_says_so_in_n() {
+    let ratio = paired_ratio(&[220.0], &[200.0], boot()).unwrap();
+    assert_eq!(ratio.n, 1);
+    assert!((ratio.ratio - 1.1).abs() < 1e-12, "{}", ratio.ratio);
+    assert!((ratio.lo - ratio.hi).abs() < f64::EPSILON, "{ratio:?}");
+}
+
+#[test]
+fn a_denominator_of_zero_is_not_a_ratio() {
+    assert!(paired_ratio(&[1.0, 2.0], &[0.0, 0.0], boot()).is_none());
+}
+
+#[test]
+#[should_panic(expected = "these are not pairs")]
+fn unequal_lengths_are_not_pairs() {
+    let _ = paired_ratio(&[1.0, 2.0], &[1.0], boot());
 }
