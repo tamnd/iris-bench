@@ -40,6 +40,15 @@ impl Digest {
         Ok(Self(*hasher.finalize().as_bytes()))
     }
 
+    /// A digest from bytes that have already been hashed somewhere else.
+    ///
+    /// For the streaming case, where the hasher is fed the same bytes that are being written and
+    /// there is never a complete copy to hand to [`Self::of_bytes`].
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; LENGTH]) -> Self {
+        Self(bytes)
+    }
+
     /// The digest as its bytes.
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; LENGTH] {

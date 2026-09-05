@@ -18,6 +18,9 @@ blake3.workspace = true
 camino.workspace = true
 flate2.workspace = true
 hex.workspace = true
+# No default features. Only the footer is read here, and the footer is not compressed, so pulling in
+# every codec and the whole Arrow bridge would be a dependency tree bought with nothing.
+parquet.workspace = true
 serde.workspace = true
 tar.workspace = true
 thiserror.workspace = true

@@ -85,6 +85,13 @@ pub struct Entry {
     pub blake3: Digest,
     /// How large the file is, which is checked before the digest because it is free.
     pub bytes: u64,
+    /// Where this particular file comes from, when the corpus source does not already say.
+    ///
+    /// Left out for almost every corpus. It exists for the case where the files of one corpus are
+    /// not all under one prefix, which is common enough in published datasets that the format
+    /// having no answer for it would mean forking the corpus rather than describing it.
+    #[serde(default)]
+    pub url: Option<String>,
 }
 
 /// Facts a run checks about the loaded corpus before it measures anything.

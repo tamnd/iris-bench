@@ -62,7 +62,7 @@ MANIFEST_FIELDS = {
         "category",
         "licence_note",
     },
-    "files": {"path", "blake3", "bytes"},
+    "files": {"path", "blake3", "bytes", "url"},
     "assertions": {"rows", "columns"},
 }
 
@@ -202,6 +202,14 @@ def check_manifest(manifest_path: pathlib.Path) -> None:
             fail(f"corpus {name}: {path} has no lower case hex BLAKE3 digest")
         if not isinstance(entry.get("bytes"), int) or entry.get("bytes", 0) <= 0:
             fail(f"corpus {name}: {path} declares no size, so a truncated file passes the length check")
+        # A fetched corpus has to be fetchable from what the manifest says, and the only two places
+        # that can come from are the entry's own url or the corpus source resolved against it.
+        if corpus.get("category") == "fetch" and not str(entry.get("url", "")).strip():
+            if not str(corpus.get("source", "")).startswith(("http://", "https://")):
+                fail(
+                    f"corpus {name}: {path} has no url and the source is not one either,"
+                    f" so there is nowhere to fetch it from"
+                )
 
 
 def check_no_machine_identity() -> None:

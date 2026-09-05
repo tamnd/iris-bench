@@ -1,8 +1,9 @@
 //! `iris-bench`, the command line tool.
 //!
-//! Only `check`, `noise`, `overhead` and `resident` are implemented. See `docs/ROADMAP.md` for the
-//! rest.
+//! Only `check`, `corpus`, `noise`, `overhead` and `resident` are implemented. See
+//! `docs/ROADMAP.md` for the rest.
 
+mod corpus;
 mod noise;
 mod overhead;
 mod resident;
@@ -128,10 +129,23 @@ enum Command {
         #[arg(long)]
         anyway: bool,
     },
-    /// Fetch or generate a corpus and verify it against its manifest.
+    /// Fetch a corpus and verify it against its manifest.
+    ///
+    /// The digest is checked in the same pass that writes the file, and the asserted row and column
+    /// counts are checked after. A corpus that is not what the manifest says never reaches a
+    /// measurement, which is the only reason any number here is worth comparing to a later one.
     Corpus {
         /// Corpus name, as it appears in the manifest directory.
         name: String,
+        /// Where the corpus manifests are, when they are not in `corpora/`.
+        #[arg(long, value_name = "PATH")]
+        root: Option<PathBuf>,
+        /// Where the bytes go, when they are not going in `corpus/`.
+        ///
+        /// Worth pointing somewhere with room. The store is content addressed, so pointing several
+        /// checkouts at one store is the supported way to have a corpus once rather than per clone.
+        #[arg(long, value_name = "PATH")]
+        store: Option<PathBuf>,
     },
     /// Run a workload and append the results to the store.
     Run {
@@ -254,6 +268,7 @@ fn main() -> anyhow::Result<()> {
             f64::from(floor) * 1_000.0,
             anyway,
         ),
+        Command::Corpus { name, root, store } => corpus::run(&name, root, store),
         other => anyhow::bail!("not implemented yet: {other:?}"),
     }
 }

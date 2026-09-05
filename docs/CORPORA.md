@@ -38,7 +38,13 @@ columns = 105
 
 `[[files]]` is one entry per file, each with a path relative to the corpus directory, a BLAKE3 digest in lower case hex, and a size in bytes. A manifest with no files is refused, because it pins nothing and the pin is the entire point. So is a path that is absolute or that contains a parent segment, since a manifest is as often something fetched from elsewhere as something written here. So is a file declared as zero bytes, and so is the same path listed twice.
 
-`[assertions]` is optional and is checked after the corpus loads rather than after it downloads. ClickBench is 99,997,497 rows across 105 columns or the manifest is wrong, and an assertion catches that far more cheaply than a number that looks slightly off six weeks later. Both fields are optional because not every corpus is tabular.
+An entry may also carry `url`, and almost none do. Without it the file's URL is its path resolved against the corpus `source` in the ordinary way, meaning everything after the last slash of `source` is replaced by the path. For a single file corpus whose source is the file itself that resolves back to the source unchanged, which is why the common case needs nothing written down. For a corpus of many files under one prefix, `source` names the directory with a trailing slash and each path is appended. `url` exists for the case where one corpus is assembled from files that are not under a common prefix, which happens often enough in published datasets that a format with no answer for it would mean forking a corpus rather than describing it.
+
+`[assertions]` is optional and is checked after the corpus loads rather than after it downloads. ClickBench is 99,997,497 rows across 105 columns or the manifest is wrong, and an assertion catches that far more cheaply than a number that looks slightly off six weeks later. Both fields are optional because not every corpus is tabular, and a corpus that asserts neither gets told so on every fetch rather than passing quietly.
+
+Rows are summed across the files of a corpus and columns have to agree between them, because a corpus split across files is one table and files with different schemas are not one table however they are named. Both counts come out of the Parquet footer, which is a seek and a few kilobytes rather than a pass over the data, and that is what makes it affordable to check before every measurement instead of once when the corpus was added.
+
+Only files whose declared path ends in `.parquet` are read for a shape, and that is decided from the manifest rather than from the bytes because the manifest is this repository's own statement about what a file is. Silesia and enwik8 are compressed text with no rows or columns at all, and for them the shape check does not apply rather than fails. A file named `.parquet` that turns out not to be Parquet is still a hard error, and a manifest that asserts a shape for a corpus where nothing can carry one is refused, because an assertion nothing checks against is worse than no assertion: on the page it reads like something is being verified.
 
 Unknown fields are an error rather than being ignored. The field most worth typing wrongly is `licence_note`, and a typo that silently does nothing would defeat the one check on this page that has legal weight.
 
@@ -46,9 +52,21 @@ Unknown fields are an error rather than being ignored. The field most worth typi
 
 Lower case hex, always, and an upper case spelling is refused rather than normalised. A manifest is read by people as well as by code, and two spellings of one digest is how a mismatch turns into an argument about whether it is a mismatch.
 
-BLAKE3 rather than SHA-256, because hashing a hundred gigabyte corpus has to be cheap enough that nobody is ever tempted to skip it. A check that only runs when somebody remembers to run it is not a pin.
+BLAKE3 rather than SHA-256, because hashing a hundred gigabyte corpus has to be cheap enough that nobody is ever tempted to skip it. A check that only runs when somebody remembers to run it is not a pin. On the i9-13900K under Linux, the 13.8 GiB ClickBench file hashes in 2.4 seconds off a warm page cache, which is about 5.7 GiB per second, so on that machine the check is bounded by the disk rather than by the hash.
 
 A digest mismatch on fetch is a hard failure with no override, and the message carries both digests. A mismatch reported as a boolean is a mismatch somebody has to reproduce before they can begin working out what happened.
+
+The size is checked as well as the digest, even though the digest would catch anything the size would. They are reported separately because a wrong length is a truncated download and a full length mismatch is a different file, and those two send somebody to look in completely different places.
+
+## Fetching
+
+`iris-bench corpus <name>` reads the manifest, fetches what it names, and checks what arrived, in that order. A corpus that describes itself badly never reaches the network, bytes that are not what was promised never reach the store, and a corpus that is short never reaches a measurement.
+
+The digest is computed in the same pass that writes the file rather than by reading it back afterwards. That is not only about speed on a fifteen gigabyte download, although it is that too. It means a file that does not match is deleted rather than left sitting under a name that asserts its own content, so the store's one invariant holds even when a fetch fails halfway.
+
+A file the store already has is never requested. That is not a cache, it is what content addressing means: the manifest already said which bytes it wants, and the store either has those bytes or it does not. Fetching ClickBench a second time on a machine that already has it takes 56 milliseconds including reading the footer and checking the assertions.
+
+The first fetch of ClickBench on the i9-13900K under Linux took about twenty minutes for 13.8 GiB, arrived at the digest pinned in the manifest, and reported 99,997,497 rows across 105 columns. Those numbers were pinned before the fetch ran, from a separate download hashed with `b3sum` and from the ClickBench documentation, so this was the manifest being checked rather than written.
 
 ## The store
 
