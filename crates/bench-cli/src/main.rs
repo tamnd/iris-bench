@@ -54,6 +54,9 @@ enum Command {
         /// The spread above which a class is ratios only, as a fraction.
         #[arg(long, default_value_t = 0.02)]
         limit: f64,
+        /// Measure even though a gate failed, which answers what a busy machine looks like.
+        #[arg(long)]
+        anyway: bool,
         /// Run one round and print what it measured, which is how a round is started.
         #[arg(long, hide = true)]
         one_round: bool,
@@ -138,12 +141,13 @@ fn main() -> anyhow::Result<()> {
             samples,
             warmup,
             limit,
+            anyway,
             one_round,
         } => {
             if one_round {
                 noise::one_round(samples, warmup)
             } else {
-                noise::probe(rounds, samples, warmup, limit)
+                noise::probe(rounds, samples, warmup, limit, anyway)
             }
         }
         other => anyhow::bail!("not implemented yet: {other:?}"),

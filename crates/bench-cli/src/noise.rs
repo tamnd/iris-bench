@@ -36,7 +36,7 @@ use std::process::Command;
 
 use anyhow::{Context as _, bail};
 use bench_core::{Bootstrap, Stop, Timing, coefficient_of_variation, summarise, time};
-use bench_env::Capture;
+use bench_env::{Capture, Outcome};
 
 /// How many 64 bit words the probe walks. Four mebibytes of them.
 const WORDS: usize = 4 * 1024 * 1024 / 8;
@@ -136,20 +136,43 @@ fn measure(samples: u32, warmup: u32) -> anyhow::Result<Round> {
 
 /// Runs the probe: `rounds` fresh processes, and the spread across what they answered.
 ///
-/// This exits zero whether or not the machine is quiet enough, and that is deliberate. The
-/// virtualised class is expected to be over the bar and knowing by how much is the point of running
-/// this at all, so a non zero exit would turn the expected result into a failure and the number
-/// nobody would ever see. `check` is the command that refuses; this one measures.
+/// The machine is read before the rounds and again after them, and a gate that failed at either end
+/// stops this without printing a floor. A floor measured on a machine with something else running
+/// on it is a measurement of the something else, and it is worse than no floor at all, because it
+/// looks like a fact about the hardware and gets quoted as one. Reading the machine again at the
+/// end is what catches the build that finished, the browser that woke up, and the backup that
+/// started while the probe was running.
+///
+/// `anyway` measures regardless and says on every line of the report that it did. That exists
+/// because what a busy machine looks like is a real question, and because somebody will want the
+/// number for a machine that can never pass, which is better answered than worked around.
+///
+/// Being over the bar is not a failure and does not change the exit status. The virtualised class
+/// is expected to be over it and finding out by how much is the reason to run this at all, so a non
+/// zero exit there would turn the expected answer into an error nobody reads. `check` is the
+/// command that refuses on the machine; this one refuses on the conditions and then measures.
 ///
 /// # Errors
 ///
-/// If a round cannot be started, ends badly, or prints something that is not two numbers.
-pub(crate) fn probe(rounds: u32, samples: u32, warmup: u32, limit: f64) -> anyhow::Result<()> {
+/// If a gate failed and `anyway` was not asked for, or if a round cannot be started, ends badly, or
+/// prints something that is not two numbers.
+pub(crate) fn probe(
+    rounds: u32,
+    samples: u32,
+    warmup: u32,
+    limit: f64,
+    anyway: bool,
+) -> anyhow::Result<()> {
     let capture = Capture::take();
+    unfit(&capture, anyway, "before the probe started")?;
+
     let mut measured = Vec::with_capacity(rounds as usize);
     for _ in 0..rounds {
         measured.push(spawn_round(samples, warmup)?);
     }
+
+    let after = Capture::take();
+    unfit(&after, anyway, "by the time the probe finished")?;
 
     let medians: Vec<f64> = measured.iter().map(|round| round.median).collect();
     let withins: Vec<f64> = measured.iter().map(|round| round.within).collect();
@@ -197,8 +220,35 @@ pub(crate) fn probe(rounds: u32, samples: u32, warmup: u32, limit: f64) -> anyho
         "the class ceiling is unchanged by this: {}",
         capture.permits()
     );
+    if anyway {
+        println!(
+            "this floor was taken with a gate failing, so it describes today on this machine and \
+             not the machine"
+        );
+    }
 
     Ok(())
+}
+
+/// Stops the probe when the machine is not fit to be measured.
+fn unfit(capture: &Capture, anyway: bool, when: &str) -> anyhow::Result<()> {
+    let Some(gate) = capture.failed() else {
+        return Ok(());
+    };
+    if anyway {
+        return Ok(());
+    }
+
+    let detail = match &gate.outcome {
+        Outcome::Pass { observed } => observed.clone(),
+        Outcome::Fail { observed, wanted } => format!("{observed}, wanted {wanted}"),
+    };
+    bail!(
+        "the {} gate failed {when}: {detail}. A floor measured on a machine with something else \
+         running on it is a measurement of the something else. Wait for the machine to settle, or \
+         ask for --anyway if what a busy machine looks like is the question",
+        gate.name
+    );
 }
 
 /// Starts one round in a new process and reads back what it measured.
