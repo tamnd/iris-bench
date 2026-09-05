@@ -52,6 +52,29 @@ This is a real limitation and it is worth being blunt about it, because the arm6
 
 The development machine. Used for portability checking and for making sure the harness builds and runs, and for nothing that gets published.
 
+## The gate sets
+
+Every class above has a gate set, and `iris-bench check` evaluates it before a run takes a measurement. A gate that fails aborts and names itself. There is no warning and no override, because a number with a caveat attached is a number that gets copied without the caveat.
+
+Three gates apply everywhere they can be evaluated. `memory-headroom` wants a quarter of the fitted memory still available, and never less than 2 GiB, because a machine with less than that free has something substantial resident in it and whatever that is has a working set competing for the same cache. `busy-processes` wants nothing else above five percent of a processor. `load-average` wants no more than a fifth of a load unit per logical processor, and exists only where the platform keeps a load average, which is everywhere except Windows.
+
+Class B carries three more. `frequency-governor` wants the performance governor on Linux, and its Windows counterpart `power-scheme` wants the High performance or Ultimate Performance scheme. `turbo` wants boost off, so the clock does not fall away as the part warms up. `core-pinning` wants the run restricted to a subset of the processors rather than free to move across all of them, because a run that can migrate between a performance core and an efficiency core produces a distribution with two modes and a confidence interval over two modes describes neither of them.
+
+### What a class can produce at best
+
+| Class | At best | Why it is capped there |
+| --- | --- | --- |
+| A, virtualised EPYC | nothing published | the guest cannot set the governor, cannot disable boost, cannot pin to a physical core and cannot see what a neighbour is doing |
+| B, the i9-13900K | durations, or ratios | durations when the governor, the boost state and the affinity can all be read, ratios when they cannot, and ratios under WSL2 whatever else is readable |
+| C, hosted arm64 | ratios | a shared hosted runner has a run to run spread of five to fifteen percent |
+| D, macOS | nothing published | the development machine, which exists to check that the harness builds and runs |
+
+The class B row is the one worth reading twice, because it is the rule that does most of the work and it is not a gate. A gate can only fail on something it can read, and the settings that matter most are exactly the ones some platforms do not expose. Under Windows the boost state and the processor affinity cannot be read by an unprivileged process, so nothing has checked whether the clock is steady, so that machine produces ratios. Being unable to see a setting is not evidence that the setting is right.
+
+That is not a hypothetical. The M0 probe in iris ran on this machine under Windows and produced a windowed overhead anywhere between minus eight and plus eighteen percent across twenty four runs in one sitting, on a gate set at three, with the flat scan alone moving by a third across an hour. The ceiling rule predicted that before the measurement was taken, which is the argument for keeping it.
+
+A setting that cannot be read is recorded as unreadable rather than skipped, and that recording goes into the environment hash. So the same machine measured under two operating systems produces two different hashes and a row from one cannot be quietly compared against a row from the other.
+
 ## The AVX-512 problem
 
 There is no AVX-512 anywhere in this fleet. The EPYC virtual machines expose AVX2 as their ceiling, and Raptor Lake has the unit fused off. This is not a configuration choice and it cannot be worked around by trying harder.

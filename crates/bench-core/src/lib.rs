@@ -37,10 +37,12 @@
 //! result gets manufactured, and the defence against that is not having the comparison in scope at
 //! the point where the decision is made.
 
+mod environment;
 mod measure;
 mod repetition;
 mod stats;
 
+pub use environment::{EnvironmentHash, ParseEnvironmentHashError};
 pub use measure::{Series, Stop, Timing, time};
 pub use repetition::{Components, Level, Pilot, Plan, plan};
 pub use stats::{Bootstrap, Summary, summarise};
