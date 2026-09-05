@@ -122,6 +122,32 @@ Every row except the pinned WSL2 one was taken with a gate failing, through `--a
 
 `busy-processes` wants nothing else above five percent of a processor and no machine here meets it reliably. The workstation reported one busy process at its quietest and thirty three a few minutes later without anything being started in between. That gate is tracked as its own issue with these readings as the evidence. It was deliberately not loosened to let these measurements through, because widening a bar until your own number gets past it is the same mistake as adding repetitions until a comparison turns significant.
 
+## What the harness adds
+
+The noise floor is a property of the machine. This one is a property of the code, and it is the only source of error on this page that gets fixed by editing something rather than by buying something. Every duration published here is the workload plus what the timing loop cost to wrap around it, so `iris-bench overhead` measures that and the number lives next to the floor.
+
+There is no single overhead percentage and quoting one would be meaningless. The harness adds a roughly fixed number of nanoseconds to each sample, so it is most of a short workload and none of a long one, and the honest form of the answer is the fixed cost plus the duration at which it drops under the bar. That form survives a workload that has not been written yet, which a percentage taken at one duration does not.
+
+Both sides of a pair run the same iterations of the same workload, a dependent multiply and add chain in registers with no memory and no system call. One side reads the clock once around the whole batch of sixty four, the other reads it once per iteration. Per iteration the batched side reports the work plus one sixty fourth of the bias and the separate side reports the work plus all of it, so the difference is the bias short by a known factor and the correction back to it is exact rather than fitted.
+
+| Workload | Instrumented | Bias | Overhead | Interval |
+| --- | --- | --- | --- | --- |
+| 72 ns | 113 ns | 41.1 ns | 56.00% | 55.29% to 56.29% |
+| 970 ns | 1.0 us | 40.8 ns | 4.14% | 4.12% to 4.20% |
+| 10.0 us | 10.1 us | 57.5 ns | 0.57% | -0.25% to 1.76% |
+| 102.0 us | 101.5 us | -500.2 ns | -0.48% | -1.40% to 0.61% |
+| 1.02 ms | 1.02 ms | -2571.6 ns | -0.25% | -1.02% to 0.53% |
+
+Taken on class B under WSL2, pinned to the performance cores, forty pairs per row with three warmup pairs, every gate passing. It is the only machine in the fleet whose floor is under the one percent bar this gate is about, so it is the only one that could have answered.
+
+The bias is read off the shortest row, because the same nanoseconds are a larger share there and the machine's own noise buries them last. The top two rows are a hundred times apart in duration and agree on 41.1 and 40.8 nanoseconds, which is the check that the quantity really is fixed rather than proportional, and that assumption is what the whole table rests on. The bottom two rows are the same quantity measured where it is a ten thousandth of the reading, and they come out negative with intervals straddling zero, which is what a fixed cost looks like once the machine's own variation is larger than it.
+
+**Verdict, and it is under the bar.** 41.1 nanoseconds per sample, interval 55.29% to 56.29% of a 72 nanosecond workload, so the harness costs under one percent of anything longer than 4.1 microseconds. The shortest workload this fleet intends to time is ten microseconds, where the same reading puts the harness at 0.57%. Two repeat runs minutes later gave 37.2 and 37.1 nanoseconds, crossing at 3.7 microseconds both times. The table above is the first of the three because it is the worst of the three, and a bound quoted from the friendliest reading is not a bound.
+
+A pair of clock reads around an empty body takes 12.0 nanoseconds of wall clock on the same machine, which is a third of the bias and is a different measurement. An empty body lets one pair of reads overlap the next, and a workload between them does not, so the empty pair understates what a clock read costs where it is actually used. That is the reason the gate is not built on it.
+
+What this does not cover: one machine, one build and one clock. `Instant::now` reads a different source on macOS and on Windows, so neither number is transferable, and class D measured 3.6 nanoseconds with an interval from 2.34% to 8.71% that is too wide to be a bound on anything. The rule that follows is about durations rather than about machines, and it is that a workload under about ten microseconds does not get published as a duration from this harness without this gate being re-run at that duration first.
+
 ## The AVX-512 problem
 
 There is no AVX-512 anywhere in this fleet. The EPYC virtual machines expose AVX2 as their ceiling, and Raptor Lake has the unit fused off. This is not a configuration choice and it cannot be worked around by trying harder.

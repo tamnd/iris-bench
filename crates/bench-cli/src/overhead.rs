@@ -280,9 +280,9 @@ fn report(
     println!("{}", capture.class);
     println!("environment {}", capture.hash);
     println!(
-        "a pair of clock reads around an empty body takes {empty:.1} ns of wall clock, which is \
-         not what a read adds to a sample, because most of the second read lands after the elapsed \
-         time has already been fixed"
+        "a pair of clock reads around an empty body takes {empty:.1} ns of wall clock, which is a \
+         different measurement from the bias below and does not have to agree with it, because an \
+         empty body lets one pair of reads overlap the next and a workload between them does not"
     );
     println!(
         "each side of a pair ran {batch} iterations, so the two sides differ by {} clock pairs and \
