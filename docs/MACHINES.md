@@ -18,7 +18,7 @@ Three virtual machines on KVM and QEMU, all running Ubuntu 24.04 LTS on the 6.8 
 
 Instruction set as exposed to the guest tops out at AVX2. There is no AVX-512.
 
-These are shared tenancy virtual machines. The guest cannot set the CPU frequency governor, cannot disable turbo, cannot pin to a physical core with any confidence that it is exclusive, and cannot see what a neighbouring tenant is doing. That rules them out for any published timing.
+These are shared tenancy virtual machines. The guest cannot set the CPU frequency governor, cannot disable turbo, cannot pin to a physical core with any confidence that it is exclusive, and cannot see what a neighbouring tenant is doing. That rules them out for any published timing. The noise floor section below puts a measured number on it: between 3.89% and 39.68% round to round on an identical workload, against a two percent bar.
 
 **Used for:** hosting the object storage endpoints for the storage tier study, including MinIO with injected network latency; mirroring corpora; running generation jobs, digest verification and other work whose output is a file rather than a duration; long running jobs where wall clock is not the measurement.
 
@@ -44,7 +44,9 @@ Windows numbers come from the same machine natively, which makes the Windows aga
 
 GitHub Actions `ubuntu-24.04-arm`. There is no arm64 Linux machine in the fleet, so this is the only arm64 Linux available.
 
-A shared hosted runner has a run to run spread in the range of five to fifteen percent, which is larger than most of the effects worth detecting. So arm64 results are within-run ratios only: WebAssembly against native on the same machine at the same moment, or guarded against unguarded. Absolute arm64 timings are not published, and a cross machine comparison against a Class B absolute number is prohibited rather than discouraged.
+A shared hosted runner has a job to job spread in the range of five to fifteen percent, which is larger than most of the effects worth detecting, because a job lands on whatever physical host is free and next to whatever neighbours are on it. So arm64 results are within-run ratios only: WebAssembly against native on the same machine at the same moment, or guarded against unguarded. Absolute arm64 timings are not published, and a cross machine comparison against a Class B absolute number is prohibited rather than discouraged.
+
+Inside a single job the runner is quiet, and measurably so: the noise floor section below records 0.10% and 0.23% round to round within a job. That is the reason a within-run ratio taken there is worth having, and it is not a reason to relax the paragraph above, because the two numbers are about different things.
 
 This is a real limitation and it is worth being blunt about it, because the arm64 study is the part of this work most likely to produce a new result. A ratio measured on a noisy machine is still a ratio, but it is a weaker instrument than the same ratio on dedicated hardware.
 
@@ -62,18 +64,63 @@ Class B carries three more. `frequency-governor` wants the performance governor 
 
 ### What a class can produce at best
 
-| Class | At best | Why it is capped there |
-| --- | --- | --- |
-| A, virtualised EPYC | nothing published | the guest cannot set the governor, cannot disable boost, cannot pin to a physical core and cannot see what a neighbour is doing |
-| B, the i9-13900K | durations, or ratios | durations when the governor, the boost state and the affinity can all be read, ratios when they cannot, and ratios under WSL2 whatever else is readable |
-| C, hosted arm64 | ratios | a shared hosted runner has a run to run spread of five to fifteen percent |
-| D, macOS | nothing published | the development machine, which exists to check that the harness builds and runs |
+| Class | At best | Measured floor | Why it is capped there |
+| --- | --- | --- | --- |
+| A, virtualised EPYC | nothing published | 3.89% to 39.68% | the guest cannot set the governor, cannot disable boost, cannot pin to a physical core and cannot see what a neighbour is doing |
+| B, the i9-13900K under Linux | durations, or ratios | 1.05% | durations when the governor, the boost state and the affinity can all be read, ratios when they cannot, and ratios under WSL2 whatever else is readable |
+| B, the i9-13900K under Windows | ratios only | 18.54% | the boost state and the processor affinity cannot be read there by an unprivileged process, and the measured floor is over the two percent bar |
+| C, hosted arm64 | ratios only | 0.23% inside a job, not measured between jobs | a shared hosted runner has a run to run spread of five to fifteen percent |
+| D, macOS | nothing published | 7.83% | the development machine, which exists to check that the harness builds and runs |
 
-The class B row is the one worth reading twice, because it is the rule that does most of the work and it is not a gate. A gate can only fail on something it can read, and the settings that matter most are exactly the ones some platforms do not expose. Under Windows the boost state and the processor affinity cannot be read by an unprivileged process, so nothing has checked whether the clock is steady, so that machine produces ratios. Being unable to see a setting is not evidence that the setting is right.
+The measured floor column is the round to round spread from `iris-bench noise`, and the section below says how it was taken and what it does not cover.
+
+The class B rows are the ones worth reading twice, because they are the rule that does most of the work and it is not a gate. A gate can only fail on something it can read, and the settings that matter most are exactly the ones some platforms do not expose. Under Windows the boost state and the processor affinity cannot be read by an unprivileged process, so nothing has checked whether the clock is steady, so that machine produces ratios. Being unable to see a setting is not evidence that the setting is right.
 
 That is not a hypothetical. The M0 probe in iris ran on this machine under Windows and produced a windowed overhead anywhere between minus eight and plus eighteen percent across twenty four runs in one sitting, on a gate set at three, with the flat scan alone moving by a third across an hour. The ceiling rule predicted that before the measurement was taken, which is the argument for keeping it.
 
 A setting that cannot be read is recorded as unreadable rather than skipped, and that recording goes into the environment hash. So the same machine measured under two operating systems produces two different hashes and a row from one cannot be quietly compared against a row from the other.
+
+## The noise floor
+
+Every effect this repository reports sits on top of how far a machine's answer moves when the question did not change. A difference smaller than that is not a difference, it is the machine. `iris-bench noise` measures it, and the table below is what the fleet actually did rather than what it was expected to do.
+
+The probe walks four mebibytes of memory in four independent dependency chains. No I/O, no allocation inside the timed region, and a working set larger than any level of cache on any machine here, so what it exercises is the memory path and the scheduler rather than a library. Each round is a whole fresh process, because restarting re-rolls address space layout, page placement and allocator state, and a floor measured inside one long lived process comes out well below the floor a real comparison has to stand on. Every reading below is forty rounds of a hundred samples with five warmup passes per round.
+
+Two numbers come out of it and they answer different questions. Round to round is the spread of the round medians, and that is the floor, because it is what a second run of a benchmark has to clear. Within one round is the spread of the individual samples inside a round, and it is a diagnostic rather than a limit, because a median over a hundred samples absorbs a descheduling event that a single sample does not. A machine can be steady between rounds and wild inside them, or the reverse, and both of those happened here.
+
+| What was measured | Round to round | Within one round | Median round | Gates at the time |
+| --- | --- | --- | --- | --- |
+| A1, the 4 vCPU guest | 5.09% and 6.16% | 39% and 114% | 0.156 ms and 0.169 ms | busy processes and load average both failing |
+| A2, the 6 vCPU guest | 9.98% and 39.68% | 160% and 149% | 0.201 ms and 0.223 ms | busy processes and load average both failing |
+| A3, the 8 vCPU guest | 3.89% and 6.45% | 36% and 41% | 0.198 ms and 0.202 ms | busy processes failing |
+| B, Linux under WSL2, pinned to the performance cores | 1.05% | 11.87% | 0.090 ms | every gate passing |
+| B, Windows, pinned to the same sixteen processors | 18.54% | 4.22% | 0.096 ms | busy processes failing, at one process |
+| C, hosted arm64 | 0.10% and 0.23% | 3.0% and 2.4% | 0.155 ms | busy processes failing, the runner agent |
+| D, macOS | 7.83% | 26.80% | 0.261 ms | busy processes and load average both failing |
+
+Where there are two figures they are two separate sittings, and both are printed because the difference between them is part of the result.
+
+The bar is two percent. Class A is over it on every machine and in every reading, which is the answer this measurement existed to get. The three guests were already ruled out for published durations, but that was an argument from what the hardware exposes to a guest. Now there is a number attached to it, and the number is worse than the argument suggested. The 6 vCPU guest moved by 39.68% between rounds of an identical workload in one sitting, with its slowest round more than three times its fastest. Any effect smaller than that measured on that machine is the neighbouring tenants.
+
+Class A is also not stable between sittings, and that matters more than any single figure in the row. The 8 vCPU guest gave 3.89% at a load average of 6.05 and then 6.45% an hour later at a load average of 1.42, so the quieter reading was the worse one. A floor that moves in the wrong direction when the machine calms down is not a property of the machine, and a class whose floor cannot be pinned down is a class that cannot carry a duration.
+
+Class B under WSL2, pinned to the performance cores with every gate in its set passing, came in at 1.05%. It is the only row here taken on a machine that satisfied its own gate set, and it is the only row under the bar for a reason about the machine rather than about the moment. On this evidence the durations ceiling for the Linux side stays where it is.
+
+Class B under Windows on the same physical machine, pinned to the same sixteen processors, came in at 18.54%, and the shape of that number is unlike anything else in the table. The samples inside a round are the steadiest of any machine here at 4.22%, and the median round is 0.096 ms, within seven percent of the Linux side on the same silicon. What moves is whole rounds: the slowest is 0.163 ms against a fastest of 0.095 ms. So the Windows floor is not a slow machine, it is a machine that now and then hands a whole process to something else for a while. The ceiling rule had already put Windows at ratios because the boost state and the affinity cannot be read there. The measurement agrees with the rule, and the rule got there first, which is the argument for keeping rules that do not depend on a measurement being taken.
+
+Class C measured 0.10% and 0.23% in two jobs, and three jobs in a row produced a median round of 0.155 ms. That does not lift the arm64 ceiling and it should not be read as evidence for lifting it. What the probe sees is one job on one rented machine over about ten seconds. The reason a hosted runner is ratios only is the spread between jobs, which is a question about which physical host a job lands on and how loaded its neighbours are, and three jobs is not a sample of that. The useful reading of this row is narrower and still worth having: the runner is quiet while it is running, so a ratio taken inside one job there is measuring what it claims to measure.
+
+Class D sits at 7.83%, taken on the development machine at a load average of 30.90 while it was doing everything a development machine does. That class publishes nothing, so the row is a check that the probe reports something sane on a busy machine rather than a limit on anything.
+
+### What the floor does not cover
+
+Three gaps, written down so the table does not get read as more than it is.
+
+It covers one sitting and one build. Drift across an hour and drift across a rebuild are both real, both larger than anything here on some machines, and both out of scope for this probe. The M0 work in iris watched a flat scan move by a third across an hour on the class B machine, which is more than fifteen times the round to round floor measured on it.
+
+Every row except the pinned WSL2 one was taken with a gate failing, through `--anyway`, and the report prints that fact on its own output. Those rows describe a machine on a day and not the machine. That is not carelessness about the conditions, it is what the fleet is: the class A guests host the object storage endpoints and the generation jobs this page says they are for, so they are never idle by design, and a hosted runner has the runner agent on a processor for the whole job.
+
+`busy-processes` wants nothing else above five percent of a processor and no machine here meets it reliably. The workstation reported one busy process at its quietest and thirty three a few minutes later without anything being started in between. That gate is tracked as its own issue with these readings as the evidence. It was deliberately not loosened to let these measurements through, because widening a bar until your own number gets past it is the same mistake as adding repetitions until a comparison turns significant.
 
 ## The AVX-512 problem
 
