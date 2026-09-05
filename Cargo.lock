@@ -750,6 +750,7 @@ name = "iris-bench-cli"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "bench-core",
  "bench-corpus",
  "bench-env",
  "bench-report",

@@ -45,7 +45,7 @@ mod stats;
 pub use environment::{EnvironmentHash, ParseEnvironmentHashError};
 pub use measure::{Series, Stop, Timing, time};
 pub use repetition::{Components, Level, Pilot, Plan, plan};
-pub use stats::{Bootstrap, Summary, summarise};
+pub use stats::{Bootstrap, Summary, coefficient_of_variation, summarise};
 
 /// Bumped whenever the way a measurement is taken changes.
 ///

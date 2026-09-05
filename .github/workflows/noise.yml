@@ -1,0 +1,81 @@
+name: Noise floor
+
+# What this measures is how far a machine's answer moves when the question did
+# not change, which is the floor under every effect this repository reports. A
+# result smaller than the floor of the machine it came from is not a result.
+#
+# Only the hosted arm64 runner is here, because it is the only class in
+# docs/MACHINES.md that is a hosted runner. The other three classes are machines
+# in the fleet and their numbers are taken on them directly, by the same command
+# with the same arguments.
+#
+# On a pull request this runs only when the probe itself changes, which is the
+# one time a published floor might no longer describe what the tool measures.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: How many times to start the process again
+        required: false
+        default: "40"
+        type: string
+      samples:
+        description: How many samples to take inside each round
+        required: false
+        default: "100"
+        type: string
+  pull_request:
+    paths:
+      - .github/workflows/noise.yml
+      - crates/bench-cli/src/noise.rs
+      - crates/bench-core/src/stats.rs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noise-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  noise:
+    name: Noise floor on ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-aarch64, os: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: noise-${{ matrix.name }}
+      - name: Record what this machine actually is
+        run: |
+          {
+            echo "## ${{ matrix.name }}"
+            echo '```'
+            uname -srm
+            echo "threads: $(nproc)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Build the harness
+        run: cargo build --release --locked -p iris-bench-cli
+      - name: Measure the floor
+        env:
+          ROUNDS: ${{ inputs.rounds || '40' }}
+          SAMPLES: ${{ inputs.samples || '100' }}
+        run: |
+          {
+            echo '```'
+            ./target/release/iris-bench noise --rounds "$ROUNDS" --samples "$SAMPLES"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
