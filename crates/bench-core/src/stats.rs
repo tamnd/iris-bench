@@ -115,6 +115,50 @@ pub fn summarise(samples: &[f64], boot: Bootstrap) -> Option<Summary> {
     })
 }
 
+/// The coefficient of variation of a series: the standard deviation over the mean.
+///
+/// Unitless, which is the whole reason for it. One machine's spread in nanoseconds says nothing
+/// next to another machine's, and the same spread as a fraction of the answer is directly
+/// comparable, which is what the noise floor table in `docs/MACHINES.md` is made of.
+///
+/// Mean based rather than median based, because that is what the coefficient of variation is and
+/// this number gets compared against figures published for other harnesses. Everywhere else here
+/// the median is the headline, for the reason at the top of this file, and the difference is not an
+/// inconsistency: a result wants the statistic that shrugs off one descheduling event, and a noise
+/// floor wants the one that counts it.
+///
+/// `None` for fewer than two samples, because one sample has no spread, and for a mean at zero,
+/// because dividing by that would report a machine as infinitely noisy when what actually happened
+/// is that the clock did not move.
+///
+/// # Panics
+///
+/// Panics if a sample is not finite, for the same reason [`summarise`] does.
+#[must_use]
+pub fn coefficient_of_variation(samples: &[f64]) -> Option<f64> {
+    if samples.len() < 2 {
+        return None;
+    }
+    assert!(
+        samples.iter().all(|s| s.is_finite()),
+        "a timing sample was not a finite number, which means the clock or the harness is broken"
+    );
+
+    // Series lengths here are in the tens or hundreds.
+    #[allow(clippy::cast_precision_loss)]
+    let n = samples.len() as f64;
+
+    let mean = samples.iter().sum::<f64>() / n;
+    if mean.abs() < f64::EPSILON {
+        return None;
+    }
+
+    // The n minus one divisor, because these are samples of how a machine behaves and not the whole
+    // of it.
+    let variance = samples.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    Some(variance.sqrt() / mean)
+}
+
 /// The median of an unsorted, non-empty slice, without sorting it.
 ///
 /// The stopping rule asks for a summary while a run is in progress, so this runs thousands of times

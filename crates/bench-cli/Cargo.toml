@@ -15,6 +15,7 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+bench-core.workspace = true
 bench-corpus.workspace = true
 bench-env.workspace = true
 bench-report.workspace = true

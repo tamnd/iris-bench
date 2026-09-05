@@ -1,6 +1,6 @@
 //! The summary: the median, the interval around it, and the minimum that is kept out of the way.
 
-use bench_core::{Bootstrap, summarise};
+use bench_core::{Bootstrap, coefficient_of_variation, summarise};
 
 fn boot() -> Bootstrap {
     Bootstrap::default()
@@ -99,4 +99,45 @@ fn a_different_seed_is_an_independent_check_and_not_a_different_answer() {
 #[should_panic(expected = "not a finite number")]
 fn a_broken_clock_is_not_summarised() {
     let _ = summarise(&[1.0, f64::NAN, 3.0], boot());
+}
+
+#[test]
+fn a_machine_that_always_answers_the_same_has_no_spread() {
+    let cv = coefficient_of_variation(&[1_000.0; 16]).unwrap();
+    assert!(cv.abs() < f64::EPSILON, "a flat series came out at {cv}");
+}
+
+#[test]
+fn the_spread_is_a_fraction_of_the_answer_and_not_a_duration() {
+    // The same shape twice, one a thousand times slower than the other. A machine that is slower
+    // and no less steady has the same noise floor, and a statistic that said otherwise would put
+    // every fast machine at the top of the table for the wrong reason.
+    let quick: Vec<f64> = (0..40).map(|i| 100.0 + f64::from(i % 4)).collect();
+    let slow: Vec<f64> = quick.iter().map(|s| s * 1_000.0).collect();
+
+    let a = coefficient_of_variation(&quick).unwrap();
+    let b = coefficient_of_variation(&slow).unwrap();
+    assert!((a - b).abs() < 1e-12, "{a} against {b}");
+}
+
+#[test]
+fn a_known_series_gives_the_textbook_answer() {
+    // Two, four and six. The mean is four and the sample standard deviation is two, so the
+    // coefficient of variation is a half. Worth having one case a reader can check by hand rather
+    // than only against the implementation that produced it.
+    let cv = coefficient_of_variation(&[2.0, 4.0, 6.0]).unwrap();
+    assert!((cv - 0.5).abs() < 1e-12, "{cv}");
+}
+
+#[test]
+fn one_sample_has_no_spread_to_report() {
+    assert!(coefficient_of_variation(&[1_234.0]).is_none());
+    assert!(coefficient_of_variation(&[]).is_none());
+}
+
+#[test]
+fn a_clock_that_did_not_move_is_not_infinitely_noisy() {
+    // Dividing by a mean of zero would report this as the noisiest machine ever measured, when what
+    // it means is that the workload took no time the clock could see.
+    assert!(coefficient_of_variation(&[0.0, 0.0, 0.0]).is_none());
 }

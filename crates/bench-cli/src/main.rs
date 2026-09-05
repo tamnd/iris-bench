@@ -1,6 +1,8 @@
 //! `iris-bench`, the command line tool.
 //!
-//! Only `check` is implemented. See `docs/ROADMAP.md` for the rest.
+//! Only `check` and `noise` are implemented. See `docs/ROADMAP.md` for the rest.
+
+mod noise;
 
 use std::path::PathBuf;
 
@@ -33,6 +35,31 @@ enum Command {
         /// exactly the case where somebody wants to see what was read.
         #[arg(long, value_name = "PATH")]
         out: Option<PathBuf>,
+    },
+    /// Measure how far this machine's answer moves between runs of one fixed workload.
+    ///
+    /// The number this prints is the floor under every effect measured here afterwards, so it is
+    /// the first thing to run on a machine nobody has measured before and the first thing to run
+    /// again when a result looks too good.
+    Noise {
+        /// How many times to start the process again.
+        #[arg(long, default_value_t = 20)]
+        rounds: u32,
+        /// How many samples to take inside each round.
+        #[arg(long, default_value_t = 50)]
+        samples: u32,
+        /// How many passes to run before a round starts recording.
+        #[arg(long, default_value_t = 5)]
+        warmup: u32,
+        /// The spread above which a class is ratios only, as a fraction.
+        #[arg(long, default_value_t = 0.02)]
+        limit: f64,
+        /// Measure even though a gate failed, which answers what a busy machine looks like.
+        #[arg(long)]
+        anyway: bool,
+        /// Run one round and print what it measured, which is how a round is started.
+        #[arg(long, hide = true)]
+        one_round: bool,
     },
     /// Fetch or generate a corpus and verify it against its manifest.
     Corpus {
@@ -109,6 +136,20 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Check { require, out } => check(require, out),
+        Command::Noise {
+            rounds,
+            samples,
+            warmup,
+            limit,
+            anyway,
+            one_round,
+        } => {
+            if one_round {
+                noise::one_round(samples, warmup)
+            } else {
+                noise::probe(rounds, samples, warmup, limit, anyway)
+            }
+        }
         other => anyhow::bail!("not implemented yet: {other:?}"),
     }
 }
