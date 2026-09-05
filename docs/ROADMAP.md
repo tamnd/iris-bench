@@ -12,6 +12,20 @@ The work: eligibility gates that abort on failure and emit an environment captur
 
 **Gate.** The noise floor on the primary x86-64 role is measured and under 1%, and the null driver shows under 1% instrumentation overhead. If the floor is above 2%, the machine is not fit for purpose and the 5% decision rules that `iris` turns on cannot be settled on it. Finding that out in week one is the point.
 
+### The B0 decision
+
+Both halves are measured, they answered differently, and the decision that comes out of them is written here rather than left implied. The numbers and how they were taken are in `MACHINES.md`, this is what follows from them.
+
+**One class holds under 2% and it is the only one, so absolute durations are a narrow permission rather than the default.** The round to round floor is 1.05% on the i9-13900K under Linux, pinned to the performance cores, with every gate in its set passing. It is the only row in the fleet taken on a machine that satisfied its own gate set and the only one under the bar for a reason about the machine rather than about the moment. Everything else is over: the three virtualised EPYC guests between 3.89% and 39.68%, the same workstation under Windows at 18.54%, macOS at 7.83%. The hosted arm64 runner reads 0.10% and 0.23% within a job, and that is not a floor, because what makes a hosted runner ratios only is the spread between jobs and three jobs is not a sample of that.
+
+So the rule is one class, one operating system, one configuration, and it is checked at run time rather than remembered. `iris-bench check` evaluates the gate set before a run and aborts by name when it fails, so a duration cannot be produced on a machine that was not entitled to produce it. Every other machine in the fleet publishes ratios taken inside one run, where it is its own control. Where an absolute number does get published from the one eligible role, the machine and the floor go in the same sentence as the number and not in a footnote, because a caveat in a footnote is a caveat that gets dropped when the number is quoted.
+
+**Instrumentation overhead is under 1%, but not as a single number, and the timing approach does not change.** The harness adds 41.1 ns to a reported sample on the eligible role, so it is under one percent of any workload longer than 4.1 us and it is 0.57% at ten microseconds. Two repeat runs gave 37.2 and 37.1 ns. There is no one percentage to quote because the cost is roughly fixed and the share it takes depends entirely on how long the workload runs, and the gate as written above asked for a figure in a form that does not exist. The form that does exist is the fixed cost plus the duration at which it crosses the bar, and it is the more useful of the two, because it applies to a workload nobody has written yet.
+
+What that buys is a limit on which workloads can be timed at all rather than a change to how they are timed. A workload under about ten microseconds does not get published as a duration from this harness without `iris-bench overhead` being re-run at that duration first. Every workload B1 through B8 contemplates is milliseconds or longer, so nothing downstream is blocked, and the reason this is written down anyway is that the constraint binds on microbenchmarks, which are exactly the thing somebody reaches for when a large result needs explaining.
+
+**What is still not settled.** The `busy-processes` gate wants nothing else above five percent of a processor and no machine in this fleet meets it reliably, including the eligible one, which reported one busy process at its quietest and thirty three a few minutes later with nothing started in between. That gate was deliberately not loosened to let these measurements through. The fleet has no bare metal Linux machine and no AVX-512 anywhere, and neither of those is fixable by trying harder. So B0 answers can we measure at all with yes, on one machine, for ratios always and for durations under a gate, and it does not answer can we measure everything.
+
 ## B1, corpora and provenance
 
 Manifests, fetching, generation, verification and the content addressed store.
