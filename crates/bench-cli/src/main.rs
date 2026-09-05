@@ -89,6 +89,13 @@ enum Command {
         /// Measure even though a gate failed, which produces a working note rather than a result.
         #[arg(long)]
         anyway: bool,
+        /// Compare the buffer against a second buffer, which measures this command's own bias.
+        ///
+        /// Nothing about iris is under test in a control run. It answers what the same comparison
+        /// reports when both sides are the same thing, which is the number every other ratio from
+        /// this machine has to be read next to.
+        #[arg(long)]
+        control: bool,
     },
     /// Fetch or generate a corpus and verify it against its manifest.
     Corpus {
@@ -187,6 +194,7 @@ fn main() -> anyhow::Result<()> {
             warmup,
             bar,
             anyway,
+            control,
         } => {
             let mib = 1024 * 1024;
             resident::gate(
@@ -197,6 +205,7 @@ fn main() -> anyhow::Result<()> {
                 warmup,
                 bar,
                 anyway,
+                control,
             )
         }
         other => anyhow::bail!("not implemented yet: {other:?}"),

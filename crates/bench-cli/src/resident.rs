@@ -44,6 +44,18 @@
 //! two designs are genuinely comparable, so that is the one measured, and the reader is told which
 //! way the remaining bias runs.
 //!
+//! # The control
+//!
+//! `--control` replaces the windowed side with a second buffer, read into its own allocation, and
+//! compares the whole buffer path against itself. Everything else about the run is identical, so
+//! whatever that reports is the harness's own bias and nothing else. A real ratio is only worth
+//! reading next to it: a comparison that cannot put two copies of the same thing at parity has no
+//! business saying that two different things are five percent apart.
+//!
+//! The second buffer is a separate allocation rather than a cheap clone of the first, because two
+//! handles onto one buffer would let the second scan of a pair read what the first one just pulled
+//! into cache, and a control that is easier than the thing it controls for measures nothing.
+//!
 //! # What the work is
 //!
 //! Summing the bytes as little endian 64 bit words. It is deliberately the cheapest per byte thing
@@ -97,6 +109,39 @@ fn fold(bytes: &[u8]) -> u64 {
     sum
 }
 
+/// Which implementation answers on one side of the comparison.
+///
+/// Both sides are one of these, including the two that are the same source in a control run, so
+/// that the two halves of a pair have the same shape and neither one carries machinery the other
+/// does not.
+enum Side {
+    /// A file read through a sliding window of fixed address space.
+    Window(FileSource),
+    /// The same bytes already resident in a buffer.
+    Buffer(MemorySource),
+}
+
+impl Side {
+    /// How many times the window has moved, which is zero for anything that does not have one.
+    fn slides(&self) -> u64 {
+        match self {
+            Self::Window(source) => source.slides(),
+            Self::Buffer(_) => 0,
+        }
+    }
+}
+
+/// Scans whichever source this side holds.
+///
+/// The match is done once per scan rather than once per range, so each arm calls a separately
+/// compiled [`scan`] and the timed loop is the same machine code it would be without this enum.
+fn scan_side(side: &mut Side, chunk: usize) -> anyhow::Result<u64> {
+    match side {
+        Side::Window(source) => scan(source, chunk),
+        Side::Buffer(source) => scan(source, chunk),
+    }
+}
+
 /// Scans a whole source in `chunk` sized ranges and returns what it summed.
 ///
 /// The sum is returned rather than dropped so that nothing here is dead code a compiler is entitled
@@ -136,8 +181,9 @@ pub(crate) fn gate(
     warmup: u32,
     bar: f64,
     anyway: bool,
+    control: bool,
 ) -> anyhow::Result<()> {
-    if chunk > span {
+    if chunk > span && !control {
         bail!(
             "a chunk of {chunk} bytes cannot be served by a window with a span of {span}, so this \
              would measure the error path rather than the scan"
@@ -156,33 +202,39 @@ pub(crate) fn gate(
     // the case this gate is about. A cold file is a measurement of the disk.
     let resident = std::fs::read(&path).context("reading the file back to make it resident")?;
 
-    let mut file = FileSource::with_span(
-        std::fs::File::open(&path).context("opening the file to scan")?,
-        span,
-    )
-    .context("reserving the window")?;
-    let mut memory = MemorySource::new(resident);
+    let mut left = if control {
+        Side::Buffer(MemorySource::new(resident.clone()))
+    } else {
+        Side::Window(
+            FileSource::with_span(
+                std::fs::File::open(&path).context("opening the file to scan")?,
+                span,
+            )
+            .context("reserving the window")?,
+        )
+    };
+    let mut right = Side::Buffer(MemorySource::new(resident));
 
     for _ in 0..warmup {
-        scan(&mut file, chunk)?;
-        scan(&mut memory, chunk)?;
+        scan_side(&mut left, chunk)?;
+        scan_side(&mut right, chunk)?;
     }
 
     // Slides are counted from the point the warmup ends, because the count on the source is for the
     // life of the window and the number a reader wants is what one scan costs.
-    let before_slides = file.slides();
+    let before_slides = left.slides();
 
     let mut measured = Vec::with_capacity(pairs as usize);
     for pair in 0..pairs {
         // Whichever side goes first pays for whatever the other one left in the caches. Alternating
         // means that cost lands on both sides equally instead of on one of them every time.
         let (windowed, buffered) = if pair.is_multiple_of(2) {
-            let windowed = time(|| scan(&mut file, chunk)).1;
-            let buffered = time(|| scan(&mut memory, chunk)).1;
+            let windowed = time(|| scan_side(&mut left, chunk)).1;
+            let buffered = time(|| scan_side(&mut right, chunk)).1;
             (windowed, buffered)
         } else {
-            let buffered = time(|| scan(&mut memory, chunk)).1;
-            let windowed = time(|| scan(&mut file, chunk)).1;
+            let buffered = time(|| scan_side(&mut right, chunk)).1;
+            let windowed = time(|| scan_side(&mut left, chunk)).1;
             (windowed, buffered)
         };
         measured.push(Pair { windowed, buffered });
@@ -210,7 +262,8 @@ pub(crate) fn gate(
         &buffer_summary,
         &ratio,
         bar,
-        (file.slides() - before_slides) / u64::from(pairs),
+        (left.slides() - before_slides) / u64::from(pairs),
+        control,
     );
 
     if anyway {
@@ -223,6 +276,21 @@ pub(crate) fn gate(
 
     if ratio.within(bar) {
         Ok(())
+    } else if control {
+        // A control that misses parity is a finding about this command, not about iris, so it says
+        // so instead of pointing at the window. Every ratio taken on the machine that produced this
+        // carries the same bias, and the honest thing to do with them is to read them next to this
+        // number rather than on their own.
+        bail!(
+            "the control puts two copies of the same buffer {:.2}% apart, interval {:.2}% to \
+             {:.2}%, and the bar is within {:.2}%. Nothing about iris is being measured here, so \
+             this is the harness or the machine, and no ratio taken alongside it is trustworthy \
+             closer than this",
+            ratio.ratio * 100.0,
+            ratio.lo * 100.0,
+            ratio.hi * 100.0,
+            bar * 100.0
+        )
     } else {
         // Unlike the noise floor, being over the bar here is a failure and exits non zero. The
         // floor measures a property of a machine that nobody chose and being surprised by it is the
@@ -255,20 +323,35 @@ fn report(
     ratio: &Ratio,
     bar: f64,
     slides: u64,
+    control: bool,
 ) {
     let mib = 1024 * 1024;
     println!("{}", capture.class);
     println!("environment {}", capture.hash);
-    println!(
-        "{pairs} pairs over a {} MiB file, a {} MiB window and {} KiB ranges, {slides} slides per \
-         scan",
-        size / mib,
-        span as u64 / mib,
-        chunk / 1024
-    );
+    if control {
+        println!(
+            "{pairs} pairs over a {} MiB file read twice into two buffers, in {} KiB ranges, which \
+             measures this command and not iris",
+            size / mib,
+            chunk / 1024
+        );
+    } else {
+        println!(
+            "{pairs} pairs over a {} MiB file, a {} MiB window and {} KiB ranges, {slides} slides \
+             per scan",
+            size / mib,
+            span as u64 / mib,
+            chunk / 1024
+        );
+    }
     println!();
     println!(
-        "  windowed file       {:>8.3} ms   {:.3} to {:.3}",
+        "  {}       {:>8.3} ms   {:.3} to {:.3}",
+        if control {
+            "second buffer"
+        } else {
+            "windowed file"
+        },
         windowed.median / 1e6,
         windowed.lo / 1e6,
         windowed.hi / 1e6
@@ -287,9 +370,17 @@ fn report(
         ratio.confidence * 100.0
     );
     println!();
+    let what = if control {
+        "of itself, so the harness is not the answer"
+    } else {
+        "of the whole buffer path, so the gate holds"
+    };
     if ratio.within(bar) {
+        println!("the whole interval is within {:.2}% {what}", bar * 100.0);
+    } else if control {
         println!(
-            "the whole interval is within {:.2}% of the whole buffer path, so the gate holds",
+            "the interval runs outside {:.2}% of itself, so the bias is in the harness or the \
+             machine",
             bar * 100.0
         );
     } else {
@@ -324,8 +415,9 @@ fn unfit(capture: &Capture, anyway: bool, when: &str) -> anyhow::Result<()> {
     };
     bail!(
         "the {} gate failed {when}: {detail}. A three percent bar sits under the noise floor of \
-         every machine in the fleet except a quiet pinned one, so a reading taken here would be \
-         the something else that was running. Wait for the machine to settle, or ask for --anyway \
+         every machine in the fleet except a pinned one with nothing else on it, so a reading taken \
+         here would be the something else that was running. Wait for the machine to settle, or ask \
+         for --anyway \
          if a working note is what is wanted",
         gate.name
     );
@@ -369,7 +461,24 @@ mod tests {
 
     #[test]
     fn a_window_smaller_than_a_chunk_is_refused_before_anything_is_measured() {
-        let error = gate(1024 * 1024, 4096, 8192, 1, 0, 0.03, true).unwrap_err();
+        let error = gate(1024 * 1024, 4096, 8192, 1, 0, 0.03, true, false).unwrap_err();
         assert!(format!("{error}").contains("cannot be served by a window"));
+    }
+
+    #[test]
+    fn a_control_run_does_not_care_how_large_the_window_would_have_been() {
+        // The span is what the window reserves and a control run does not open one, so refusing a
+        // control because of a span it will never use would be refusing the one run that answers
+        // whether the refusal was worth listening to.
+        let outcome = gate(1024 * 1024, 4096, 8192, 2, 0, 1.0, true, true);
+        assert!(outcome.is_ok(), "{outcome:?}");
+    }
+
+    #[test]
+    fn a_control_run_compares_two_buffers_and_counts_no_slides() {
+        let bytes = vec![7u8; 4096];
+        let mut side = Side::Buffer(MemorySource::new(bytes.clone()));
+        assert_eq!(side.slides(), 0);
+        assert_eq!(scan_side(&mut side, 1024).unwrap(), fold(&bytes));
     }
 }
