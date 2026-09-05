@@ -52,9 +52,10 @@
 //! reading next to it: a comparison that cannot put two copies of the same thing at parity has no
 //! business saying that two different things are five percent apart.
 //!
-//! The second buffer is a separate allocation rather than a cheap clone of the first, because two
+//! The second buffer comes from reading the file a second time, not from cloning the first. Two
 //! handles onto one buffer would let the second scan of a pair read what the first one just pulled
-//! into cache, and a control that is easier than the thing it controls for measures nothing.
+//! into cache, and a clone is an allocation with a different history from a read, which is the one
+//! difference a control is not allowed to have.
 //!
 //! # What the work is
 //!
@@ -203,7 +204,13 @@ pub(crate) fn gate(
     let resident = std::fs::read(&path).context("reading the file back to make it resident")?;
 
     let mut left = if control {
-        Side::Buffer(MemorySource::new(resident.clone()))
+        // Read the file again rather than cloning what was just read, so that both sides of a
+        // control come out of the same call. A clone and a read produce two allocations with
+        // different histories, and a control whose halves were not built the same way cannot tell
+        // a bias that was already there from one it introduced itself.
+        Side::Buffer(MemorySource::new(
+            std::fs::read(&path).context("reading the file again for the other side")?,
+        ))
     } else {
         Side::Window(
             FileSource::with_span(
