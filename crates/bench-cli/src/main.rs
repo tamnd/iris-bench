@@ -1,8 +1,10 @@
 //! `iris-bench`, the command line tool.
 //!
-//! Only `check`, `noise` and `resident` are implemented. See `docs/ROADMAP.md` for the rest.
+//! Only `check`, `noise`, `overhead` and `resident` are implemented. See `docs/ROADMAP.md` for the
+//! rest.
 
 mod noise;
+mod overhead;
 mod resident;
 
 use std::path::PathBuf;
@@ -96,6 +98,35 @@ enum Command {
         /// this machine has to be read next to.
         #[arg(long)]
         control: bool,
+    },
+    /// Measure what the timing loop adds to a sample, and the workload length that makes it small.
+    ///
+    /// The B0 gate. There is no single overhead percentage, because the harness adds a roughly
+    /// fixed number of nanoseconds and the share that takes depends on how long the workload runs.
+    /// What this reports is the fixed cost and the duration at which it falls under the bar.
+    Overhead {
+        /// How many pairs of measurements to take at each duration.
+        #[arg(long, default_value_t = 40)]
+        pairs: u32,
+        /// How many iterations of the workload each side of a pair runs.
+        #[arg(long, default_value_t = 64)]
+        batch: u32,
+        /// How many pairs to run at each duration before recording anything.
+        #[arg(long, default_value_t = 3)]
+        warmup: u32,
+        /// The share of a workload the harness may take, as a fraction.
+        #[arg(long, default_value_t = 0.01)]
+        bar: f64,
+        /// The shortest workload this fleet intends to time, in microseconds.
+        ///
+        /// The gate is whether the harness is under the bar at this duration. It is an input
+        /// because it is a decision about what gets benchmarked rather than a fact about the
+        /// machine, and burying a decision like that in a constant makes it look like a fact.
+        #[arg(long, default_value_t = 10)]
+        floor: u32,
+        /// Measure even though a gate failed, which produces a working note rather than a result.
+        #[arg(long)]
+        anyway: bool,
     },
     /// Fetch or generate a corpus and verify it against its manifest.
     Corpus {
@@ -208,6 +239,21 @@ fn main() -> anyhow::Result<()> {
                 control,
             )
         }
+        Command::Overhead {
+            pairs,
+            batch,
+            warmup,
+            bar,
+            floor,
+            anyway,
+        } => overhead::gate(
+            pairs,
+            batch,
+            warmup,
+            bar,
+            f64::from(floor) * 1_000.0,
+            anyway,
+        ),
         other => anyhow::bail!("not implemented yet: {other:?}"),
     }
 }
