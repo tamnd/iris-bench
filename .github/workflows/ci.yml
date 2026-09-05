@@ -46,6 +46,12 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # The validator before the thing it validates. There are no corpora in the
+      # tree yet, so the manifest rules would otherwise be code CI runs zero
+      # times, and the first manifest to arrive should meet a checker that has
+      # itself been checked.
+      - run: python3 test_discipline.py
+        working-directory: ci
       - run: python3 ci/discipline.py
 
   test:

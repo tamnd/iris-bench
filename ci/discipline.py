@@ -9,9 +9,11 @@ What it checks:
   1. Every driver in drivers/ has a CONFIG.md with all its required sections.
   2. Every driver's configuration review date is present and parseable, and is
      not more than 180 days old.
-  3. Every corpus manifest declares a source, a licence, a category, and at
-     least one digest, and every corpus in the mirror category has a licence
-     note saying what permits us to redistribute it.
+  3. Every corpus manifest matches the format in docs/CORPORA.md: it names
+     itself after its own directory, declares a description, a source, a licence
+     and one of the three categories, pins at least one file by lower case hex
+     BLAKE3 digest and size, uses paths that stay inside the corpus directory,
+     and carries a licence note if it is mirrored.
   4. No driver crate depends on anything in the tree except bench-driver.
   5. No hostname, address or account identifier from the benchmark fleet has
      leaked into a committed file.
@@ -35,6 +37,34 @@ CONFIG_SECTIONS = [
     "Rejected alternatives",
     "Last reviewed",
 ]
+
+# The three handling categories from docs/LICENSING.md. A corpus is generated
+# locally, fetched at run time, or redistributed here, and the third one is the
+# only one that needs a licence note because it is the only one where this
+# repository is the party doing the redistributing.
+CORPUS_CATEGORIES = {"generate", "fetch", "mirror"}
+
+# Lower case hex, always. An upper case spelling of the same digest is refused
+# rather than normalised, because a manifest is read by people as well as by
+# code and two spellings of one value is how a mismatch gets argued about.
+DIGEST = re.compile(r"[0-9a-f]{64}")
+
+# Every field this format has. A field that is not here is an error rather than
+# something ignored, because the field most worth typing wrongly is
+# licence_note, and a typo that silently does nothing would defeat the one check
+# in this file with legal weight.
+MANIFEST_FIELDS = {
+    "corpus": {
+        "name",
+        "description",
+        "source",
+        "licence",
+        "category",
+        "licence_note",
+    },
+    "files": {"path", "blake3", "bytes"},
+    "assertions": {"rows", "columns"},
+}
 
 # A driver may depend on the trait crate and on nothing else in this workspace.
 # Otherwise a driver can reach into the runner and special case itself, which is
@@ -85,23 +115,93 @@ def check_driver_deps(driver: pathlib.Path) -> None:
 
 
 def check_corpora() -> None:
+    """Validates every manifest in the tree against docs/CORPORA.md.
+
+    These rules are the same ones bench_corpus::Manifest applies, duplicated on
+    purpose. This runs on a tree that may not compile, which is exactly the case
+    where a bad manifest is most likely to get through, so it cannot be the Rust
+    code that does it.
+    """
     corpora = ROOT / "corpora"
     if not corpora.exists():
         return
-    for manifest_path in sorted(corpora.glob("*/manifest.toml")):
-        name = manifest_path.parent.name
+    for directory in sorted(p for p in corpora.iterdir() if p.is_dir()):
+        manifest_path = directory / "manifest.toml"
+        if not manifest_path.exists():
+            fail(f"corpus {directory.name}: no manifest.toml")
+            continue
+        check_manifest(manifest_path)
+
+
+def check_fields(name: str, table: str, values: dict, allowed: set[str]) -> None:
+    """Complains about any field in a manifest table that this format does not have."""
+    if not isinstance(values, dict):
+        fail(f"corpus {name}: '{table}' is not a table")
+        return
+    for field in sorted(set(values) - allowed):
+        fail(f"corpus {name}: '{field}' in [{table}] is not part of this format, see docs/CORPORA.md")
+
+
+def check_manifest(manifest_path: pathlib.Path) -> None:
+    directory = manifest_path.parent.name
+    try:
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
-        corpus = manifest.get("corpus", {})
-        for field in ("source", "licence", "category"):
-            if not corpus.get(field):
-                fail(f"corpus {name}: manifest has no '{field}'")
-        if not manifest.get("files"):
-            fail(f"corpus {name}: manifest declares no files, so nothing is pinned")
-        for entry in manifest.get("files", []):
-            if not entry.get("blake3"):
-                fail(f"corpus {name}: file {entry.get('path')} has no digest")
-        if corpus.get("category") == "mirror" and not corpus.get("licence_note"):
-            fail(f"corpus {name}: mirrored without a licence note saying what permits it")
+    except tomllib.TOMLDecodeError as error:
+        fail(f"corpus {directory}: manifest is not valid TOML: {error}")
+        return
+
+    corpus = manifest.get("corpus", {})
+    name = corpus.get("name") or directory
+
+    for table in manifest:
+        if table not in MANIFEST_FIELDS:
+            fail(f"corpus {name}: '{table}' is not part of this format, see docs/CORPORA.md")
+    check_fields(name, "corpus", corpus, MANIFEST_FIELDS["corpus"])
+    check_fields(name, "assertions", manifest.get("assertions", {}), MANIFEST_FIELDS["assertions"])
+    for entry in manifest.get("files", []):
+        check_fields(name, "files", entry, MANIFEST_FIELDS["files"])
+
+    for field in ("name", "description", "source", "licence", "category"):
+        if not str(corpus.get(field, "")).strip():
+            fail(f"corpus {name}: manifest has no '{field}'")
+
+    # The directory is the corpus name. Two names for one corpus is how a result
+    # ends up citing something other than what it read.
+    if corpus.get("name") and corpus["name"] != directory:
+        fail(f"corpus {name}: named '{corpus['name']}' but lives in '{directory}'")
+
+    if corpus.get("category") not in CORPUS_CATEGORIES:
+        fail(
+            f"corpus {name}: category is {corpus.get('category')!r} and the three"
+            f" in docs/LICENSING.md are {sorted(CORPUS_CATEGORIES)}"
+        )
+
+    # Only a mirrored corpus is one this repository redistributes, so it is the
+    # only one where somebody has to have read the licence and written down what
+    # it permits.
+    if corpus.get("category") == "mirror" and not str(corpus.get("licence_note", "")).strip():
+        fail(f"corpus {name}: mirrored without a licence note saying what permits it")
+
+    files = manifest.get("files", [])
+    if not files:
+        fail(f"corpus {name}: manifest declares no files, so nothing is pinned")
+
+    seen: set[str] = set()
+    for entry in files:
+        path = str(entry.get("path", "")).strip()
+        if not path:
+            fail(f"corpus {name}: a file entry has no path")
+            continue
+        if path in seen:
+            fail(f"corpus {name}: {path} is listed twice")
+        seen.add(path)
+        if pathlib.PurePosixPath(path).is_absolute() or ".." in pathlib.PurePosixPath(path).parts:
+            fail(f"corpus {name}: {path} is not a path inside the corpus directory")
+        digest = str(entry.get("blake3", ""))
+        if not DIGEST.fullmatch(digest):
+            fail(f"corpus {name}: {path} has no lower case hex BLAKE3 digest")
+        if not isinstance(entry.get("bytes"), int) or entry.get("bytes", 0) <= 0:
+            fail(f"corpus {name}: {path} declares no size, so a truncated file passes the length check")
 
 
 def check_no_machine_identity() -> None:

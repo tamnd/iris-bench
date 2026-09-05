@@ -225,6 +225,7 @@ dependencies = [
  "hex",
  "serde",
  "tar",
+ "tempfile",
  "thiserror",
  "toml",
  "ureq",

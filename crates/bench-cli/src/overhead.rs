@@ -366,20 +366,31 @@ fn unfit(capture: &Capture, anyway: bool, when: &str) -> anyhow::Result<()> {
 mod tests {
     use super::*;
 
+    /// The shortest of three runs of the chain, in nanoseconds.
+    ///
+    /// The same defence [`calibrate`] uses, for the same reason. These tests run alongside every
+    /// other test in the workspace, so a single reading here is a reading of whatever else the
+    /// machine was doing, and descheduling can only ever make a duration longer.
+    fn shortest(rounds: u64) -> f64 {
+        (0..3)
+            .map(|_| time(|| opaque(rounds)).1)
+            .fold(f64::INFINITY, f64::min)
+    }
+
     #[test]
     fn a_longer_chain_takes_longer() {
         // Calibration is arithmetic on the assumption that duration is proportional to the step
         // count. If that stops being true, every row in the sweep aims at the wrong duration and
         // nothing else in this file notices.
-        let short = time(|| opaque(1_000)).1;
-        let long = time(|| opaque(1_000_000)).1;
+        let short = shortest(1_000);
+        let long = shortest(1_000_000);
         assert!(long > short * 10.0, "short {short}, long {long}");
     }
 
     #[test]
     fn calibration_lands_within_an_order_of_magnitude_of_what_it_aimed_at() {
         let rounds = calibrate(100_000.0);
-        let taken = time(|| opaque(rounds)).1;
+        let taken = shortest(rounds);
         assert!(
             (10_000.0..1_000_000.0).contains(&taken),
             "aimed at 100000 ns with {rounds} steps and took {taken}"

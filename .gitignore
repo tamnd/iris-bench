@@ -3,6 +3,7 @@
 /corpus
 /results
 /store
+__pycache__/
 *.profraw
 lcov.info
 .DS_Store
