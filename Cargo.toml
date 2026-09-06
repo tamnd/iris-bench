@@ -32,6 +32,10 @@ bytes = "1.12.1"
 camino = "1.2.5"
 clap = { version = "4.6.6", features = ["derive", "wrap_help"] }
 comfy-table = "8.0.0"
+# Bundled on purpose. The version of a system under test belongs in the lockfile rather than in
+# whatever each machine happened to have installed, because a version that varies by machine is a
+# version nobody pinned and every result row carries it.
+duckdb = { version = "1.10505.0", features = ["bundled"] }
 flate2 = "1.1.10"
 hdrhistogram = "7.6.0"
 hex = "0.4.3"
@@ -91,3 +95,15 @@ undocumented_unsafe_blocks = "deny"
 codegen-units = 1
 lto = "thin"
 debug = "line-tables-only"
+
+# DuckDB is bundled, which means its amalgamation gets compiled here, and at the dev profile's
+# defaults that is about 2.7 GB of debug info per build fingerprint and a system under test compiled
+# with no optimisation at all. Neither is any use. Nobody steps through DuckDB's internals in a
+# debugger, they measure them, and an unoptimised DuckDB is not the DuckDB anyone runs.
+[profile.dev.package.libduckdb-sys]
+debug = false
+opt-level = 2
+
+[profile.test.package.libduckdb-sys]
+debug = false
+opt-level = 2

@@ -98,8 +98,12 @@ pub struct Load {
 /// Small on purpose. Every corpus in scope is either Parquet or a text file with one row per line
 /// and a single separator character, and a format enum with more in it than that would be
 /// describing formats nothing here reads.
+///
+/// Not `non_exhaustive`, deliberately. Every driver lives in this workspace, and adding a format
+/// should break each of their builds until someone has decided what that format means for that
+/// system. The alternative is a wildcard arm in every driver, which is a decision nobody made
+/// turning into a run that silently read the wrong thing.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[non_exhaustive]
 pub enum Format {
     /// Apache Parquet.
     Parquet,
