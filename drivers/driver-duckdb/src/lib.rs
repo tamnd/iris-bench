@@ -243,9 +243,10 @@ fn decimal(inner: duckdb::types::Decimal) -> f64 {
 
 /// A time or timestamp in microseconds, whatever unit `DuckDB` counted it in.
 ///
-/// Nanoseconds are refused rather than divided down. Rounding a nanosecond timestamp to a
-/// microsecond would make two instants that differ render the same, and a canonical form that
-/// merges values is worse than one that says it cannot render them.
+/// A nanosecond value that divides exactly is the same instant written in a coarser unit, so it is
+/// converted. One with a remainder is refused rather than rounded, because rounding would make two
+/// instants that differ render the same, and a canonical form that merges values is worse than one
+/// that says it cannot render them.
 fn microseconds(
     unit: duckdb::types::TimeUnit,
     inner: i64,
@@ -258,10 +259,14 @@ fn microseconds(
         TimeUnit::Millisecond => 1_000,
         TimeUnit::Microsecond => 1,
         TimeUnit::Nanosecond => {
-            return Err(DriverError::unsupported(
-                format!("{query} column {column}"),
-                "nanosecond precision has no canonical form here",
-            ));
+            return if inner % 1_000 == 0 {
+                Ok(inner / 1_000)
+            } else {
+                Err(DriverError::unsupported(
+                    format!("{query} column {column}"),
+                    format!("{inner} nanoseconds is finer than the canonical form goes"),
+                ))
+            };
         }
     };
     inner.checked_mul(factor).ok_or_else(|| {
