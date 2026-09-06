@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "drivers/*"]
 
 [workspace.package]
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
 rust-version = "1.98"
 license = "Apache-2.0"
@@ -16,14 +16,14 @@ readme = "README.md"
 publish = false
 
 [workspace.dependencies]
-bench-core = { path = "crates/bench-core", version = "0.2.3" }
-bench-corpus = { path = "crates/bench-corpus", version = "0.2.3" }
-bench-driver = { path = "crates/bench-driver", version = "0.2.3" }
-bench-env = { path = "crates/bench-env", version = "0.2.3" }
-bench-report = { path = "crates/bench-report", version = "0.2.3" }
-bench-run = { path = "crates/bench-run", version = "0.2.3" }
-bench-store = { path = "crates/bench-store", version = "0.2.3" }
-bench-workload = { path = "crates/bench-workload", version = "0.2.3" }
+bench-core = { path = "crates/bench-core", version = "0.2.4" }
+bench-corpus = { path = "crates/bench-corpus", version = "0.2.4" }
+bench-driver = { path = "crates/bench-driver", version = "0.2.4" }
+bench-env = { path = "crates/bench-env", version = "0.2.4" }
+bench-report = { path = "crates/bench-report", version = "0.2.4" }
+bench-run = { path = "crates/bench-run", version = "0.2.4" }
+bench-store = { path = "crates/bench-store", version = "0.2.4" }
+bench-workload = { path = "crates/bench-workload", version = "0.2.4" }
 
 anyhow = "1.0.104"
 arrow-array = "59.3.0"
