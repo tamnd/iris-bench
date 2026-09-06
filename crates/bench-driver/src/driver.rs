@@ -170,7 +170,14 @@ pub enum DriverError {
     Answer(#[from] WidthError),
 
     /// Anything the system itself reported.
-    #[error("{context}")]
+    ///
+    /// Both halves are in the message rather than only the context. What the protocol records
+    /// against a failed query is this error rendered as a string, so a message that stopped at the
+    /// context would put `running q38` in the result and throw away the sentence saying which cast
+    /// the system refused. A failure nobody can read is a failure nobody can fix, and seven of them
+    /// in a row is how a driver that was never configured properly gets mistaken for a system that
+    /// cannot answer.
+    #[error("{context}: {source}")]
     System {
         /// What was being attempted.
         context: String,
@@ -232,7 +239,9 @@ mod tests {
     fn a_system_error_keeps_what_the_system_said() {
         let inner = std::io::Error::other("connection reset");
         let error = DriverError::system("loading hits", inner);
-        assert_eq!(error.to_string(), "loading hits");
+        // In the message and not only in the source. The protocol records the message, so anything
+        // left out of it is left out of the result as well.
+        assert_eq!(error.to_string(), "loading hits: connection reset");
         assert!(std::error::Error::source(&error).is_some());
     }
 

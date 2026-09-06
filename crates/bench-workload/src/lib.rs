@@ -36,12 +36,14 @@
 pub mod agree;
 pub mod clickbench;
 pub mod digest;
+pub mod leaderboard;
 pub mod protocol;
 pub mod workload;
 
 pub use agree::{Comparison, Disagreement, Reading, Unstable, compare};
 pub use clickbench::Dialect;
 pub use digest::{Digest, ParseDigestError};
+pub use leaderboard::{BAND, Calibration, Column, Published, Reference, Standing, geomean};
 pub use protocol::{Cold, Measured, Outcome, PageCache, RUNS, Report, Run, Warm, measure};
 pub use workload::{Source, Workload};
 

@@ -96,6 +96,14 @@ cargo run --release -p iris-bench-cli -- clickbench check duckdb.json datafusion
 
 Agreement is per query, across every system that answered it. A query only one system answered is reported separately rather than counted as confirmed, and a system that gave two different answers across its own three runs is named even when the systems agreed with each other.
 
+The other check on the same records is against the public leaderboard, which is what says the harness itself is not wrong.
+
+```
+cargo run --release -p iris-bench-cli -- clickbench calibrate duckdb.json datafusion.json arrow-parquet.json
+```
+
+ClickBench publishes the numbers behind every row of its leaderboard, and this carries the DuckDB and DataFusion files for c6a.4xlarge with their address and their digest. The machine here is not that machine, so the comparison is not against any particular ratio. A faster machine moves every query on every system by about one factor, so each driver gets its own ratio against the published numbers, the machine factor is the geometric mean of those ratios, and a driver more than 25 percent away from the shared factor is reported as misconfigured along with the queries that put it there. What that cannot catch is a mistake that slows everything here equally, which looks exactly like a slower machine, and the crate says so rather than leaving it to be discovered.
+
 ## Machines
 
 Results are labelled by hardware class rather than by machine name. `docs/MACHINES.md` lists the fleet, what each class is used for, and what it cannot be used for.
