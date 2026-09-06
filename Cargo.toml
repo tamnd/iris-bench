@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "drivers/*"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 rust-version = "1.98"
 license = "Apache-2.0"
@@ -16,13 +16,13 @@ readme = "README.md"
 publish = false
 
 [workspace.dependencies]
-bench-core = { path = "crates/bench-core", version = "0.2.0" }
-bench-corpus = { path = "crates/bench-corpus", version = "0.2.0" }
-bench-driver = { path = "crates/bench-driver", version = "0.2.0" }
-bench-env = { path = "crates/bench-env", version = "0.2.0" }
-bench-report = { path = "crates/bench-report", version = "0.2.0" }
-bench-run = { path = "crates/bench-run", version = "0.2.0" }
-bench-store = { path = "crates/bench-store", version = "0.2.0" }
+bench-core = { path = "crates/bench-core", version = "0.2.1" }
+bench-corpus = { path = "crates/bench-corpus", version = "0.2.1" }
+bench-driver = { path = "crates/bench-driver", version = "0.2.1" }
+bench-env = { path = "crates/bench-env", version = "0.2.1" }
+bench-report = { path = "crates/bench-report", version = "0.2.1" }
+bench-run = { path = "crates/bench-run", version = "0.2.1" }
+bench-store = { path = "crates/bench-store", version = "0.2.1" }
 
 anyhow = "1.0.104"
 arrow-array = "59.3.0"
