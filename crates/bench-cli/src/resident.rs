@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn a_window_smaller_than_a_chunk_is_refused_before_anything_is_measured() {
-        let error = gate(1024 * 1024, 4096, 8192, 1, 0, 0.03, true, false).unwrap_err();
+        let error = measure(refusable(false), 0, true).unwrap_err();
         assert!(format!("{error}").contains("cannot be served by a window"));
     }
 
@@ -545,8 +545,24 @@ mod tests {
         // The span is what the window reserves and a control run does not open one, so refusing a
         // control because of a span it will never use would be refusing the one run that answers
         // whether the refusal was worth listening to.
-        let outcome = gate(1024 * 1024, 4096, 8192, 2, 0, 1.0, true, true);
+        //
+        // This asks `measure` rather than `gate` on purpose. What is under test is whether the run
+        // is refused before it starts, and going through `gate` would also put the result up
+        // against a bar, which on a shared machine is a question about that machine rather than
+        // about the refusal.
+        let outcome = measure(refusable(true), 0, true);
         assert!(outcome.is_ok(), "{outcome:?}");
+    }
+
+    /// A setup whose chunk is larger than its span, which is the shape the refusal is about.
+    fn refusable(control: bool) -> Setup {
+        Setup {
+            size: 1024 * 1024,
+            span: 4096,
+            chunk: 8192,
+            pairs: 2,
+            control,
+        }
     }
 
     #[test]
