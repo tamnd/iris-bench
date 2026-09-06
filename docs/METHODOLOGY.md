@@ -34,6 +34,20 @@ All three are separate metrics. None of them is the default. The tier and the ca
 
 Cross platform comparison of cold numbers is prohibited, because the primitive for dropping a cache is not equivalent across operating systems and the resulting numbers are not measuring the same thing.
 
+## The three phases
+
+Every system under test is driven through the same three phases, and each one is timed separately. Prepare is starting the system and applying its configuration. Load is getting a table in. Run is answering a query. Conflating them is the most common way a benchmark accidentally measures the wrong thing: load time charged to query time makes a system look slow, and an index built during preparation makes it look fast.
+
+Preparation is not given any file paths. That is the mechanism rather than a convention, because a driver handed the corpus before the load phase could read it, index it, convert it, or cache it, and every one of those would land in the phase the load timing is supposed to account for. Preparation gets a scratch directory, a thread count and a memory budget, and nothing it could start early with.
+
+A query cannot be answered before something has been loaded. A system that could answer one read the data during preparation, and the split exists precisely so that this shows up rather than disappearing into a phase nobody looks at.
+
+The driver does not hold the clock. The harness borrows the driver, calls the three methods itself, and times each call from the outside, so a driver cannot report a preparation that took no time. Drivers are checked in CI for a clock of their own, and a crate under `drivers/` that does not implement the trait fails the build, which is what makes "every driver reports all three" a property rather than an intention.
+
+All three phases are always reported. A driver that reads its files in place has a small load and a large run, one that ingests into a native format has the opposite, and both of those are true things about the system that a single total would hide. Loading can happen many times, because TPC-H is eight tables and ClickBench is one.
+
+A query has to return a materialised result. A system with lazy evaluation that hands back a plan has been timed on building a plan, and comparing that against a system that actually computed the answer is not a comparison.
+
 ## What gets compared
 
 Decode loop time, format scan time, and end to end query time are three different measurements and they are stored as three different metrics. Most of the apparent contradictions in the published literature come from comparing one against another. Nobody involved was being dishonest, they were answering different questions that share a word.
@@ -47,6 +61,10 @@ Where many comparisons are made at once, the multiplicity is accounted for, beca
 Every query produces a digest of its canonicalised result, and the digests are compared across systems. A row whose result does not match is marked incorrect and its timings are excluded from every aggregate.
 
 This is not paranoia. The motivating example in the fair benchmarking literature is a prototype that was faster because it used hardcoded group counts, types too small to hold the aggregate, and unhandled overflow. It was, of course, faster. A digest catches that class of thing without anyone having to suspect it.
+
+Canonicalised is the load bearing word, because three systems asked the same question return the same answer in three different shapes and none of those shapes is wrong. So the rendering is defined once, in the trait crate, and no driver renders its own results. Nulls have one spelling, text is escaped so that a value which happens to look like a null is not one, and drivers do not hash their own output, since a driver that hashes its own output can agree with itself about a wrong answer.
+
+Two of the rules cost something and are worth stating. Floats are rendered to six significant digits, because two engines summing a hundred million values will not agree past that when one adds them in parallel partial sums and the other in order. Six digits survives that and still catches a hardcoded group count or an overflowed accumulator, neither of which is a seventh digit difference. What it gives up is a genuine small error, and that is the price of a digest, which cannot express a tolerance. Rows are sorted unless the query specified an order, because two systems that returned the same rows in a different order both answered the question that was asked, and a query that does specify an order gets that order checked.
 
 ## Pre-registration
 

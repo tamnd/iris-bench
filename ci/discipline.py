@@ -80,6 +80,12 @@ MANIFEST_FIELDS = {
 # the single failure mode that would make every comparison here worthless.
 DRIVER_ALLOWED_INTERNAL_DEPS = {"bench-driver"}
 
+# A driver does not hold the clock. bench_driver::Session times the three phases
+# from the outside, and a driver that reached for a clock of its own would be
+# reporting a number nobody else checked, which is how load time ends up inside
+# preparation and preparation ends up in nobody's total.
+DRIVER_CLOCK = re.compile(r"\bInstant\b|\bSystemTime\b|\bclock_gettime\b|\bQueryPerformanceCounter\b")
+
 failures: list[str] = []
 
 
@@ -109,6 +115,40 @@ def check_drivers() -> None:
             if age > REVIEW_MAX_AGE_DAYS:
                 fail(f"{driver.name}: configuration last reviewed {age} days ago")
         check_driver_deps(driver)
+        check_driver_source(driver)
+
+
+def check_driver_source(driver: pathlib.Path) -> None:
+    """A driver implements the trait, and does not time itself.
+
+    The first half is what makes "every driver reports all three phases" true
+    rather than hoped for: a crate under drivers/ that implements nothing is a
+    system in the matrix that never gets measured. The second half is why the
+    phases mean anything, since a driver holding its own clock can report a
+    preparation that took no time and a load that happened somewhere else.
+    """
+    source = driver / "src" / "lib.rs"
+    if not source.exists():
+        fail(f"{driver.name}: no src/lib.rs")
+        return
+    text = source.read_text(encoding="utf-8")
+    if not re.search(r"^impl Driver for ", text, re.MULTILINE):
+        fail(f"{driver.name}: does not implement Driver, so nothing about it can be measured")
+
+    lines = text.splitlines()
+    end = next(
+        (number for number, line in enumerate(lines) if line.strip() == "#[cfg(test)]"),
+        len(lines),
+    )
+    for number, line in enumerate(lines[:end], 1):
+        if line.lstrip().startswith("//"):
+            continue
+        hit = DRIVER_CLOCK.search(line)
+        if hit:
+            fail(
+                f"{driver.name}:src/lib.rs:{number}: {hit.group()} is a clock, and the phases are"
+                f" timed by the session rather than by the driver"
+            )
 
 
 def check_driver_deps(driver: pathlib.Path) -> None:
