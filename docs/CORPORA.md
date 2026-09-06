@@ -40,6 +40,10 @@ columns = 105
 
 An entry may also carry `url`, and almost none do. Without it the file's URL is its path resolved against the corpus `source` in the ordinary way, meaning everything after the last slash of `source` is replaced by the path. For a single file corpus whose source is the file itself that resolves back to the source unchanged, which is why the common case needs nothing written down. For a corpus of many files under one prefix, `source` names the directory with a trailing slash and each path is appended. `url` exists for the case where one corpus is assembled from files that are not under a common prefix, which happens often enough in published datasets that a format with no answer for it would mean forking a corpus rather than describing it.
 
+`part_of` names the corpus this one is a selection from, and only a corpus that really is one may carry it. Public BI is why it exists. The benchmark is published as 206 tables, much of the encoding literature measures a subset of 36 of them, and a number labelled Public BI is ambiguous about which of those two it is. So both are corpora here, `public-bi` and `public-bi-36`, and the second says which set it is drawn from.
+
+That claim is checked rather than believed. Every entry in a part has to appear in the whole at the same path with the same digest and the same size, and the part has to be smaller. A subset that has quietly drifted from the set it names is worse than no subset at all, because every number labelled with it is then about something nobody can reconstruct. The check needs both manifests in hand, so it runs in `ci/discipline.py` over the tree and in `Manifest::is_part_of` at run time, while the parts of the claim that can be settled from one manifest alone, that the name is not empty and not the corpus itself, are checked where every other field is.
+
 `[generator]` says what produces a generated corpus, and only a generated corpus may have one. A manifest carrying both a generator and a download location is making two claims about one set of bytes, and the second of those is the one that goes unread. It has a `program` to run, `arguments` to pass it, a `version` that must appear in what the program says about itself, `version_arguments` that make it say so, and an `environment` table for anything the program needs to be told through the environment rather than on the command line. The working directory is the output directory, and two placeholders are substituted into environment values: `{output}` is where the files should land and `{program_directory}` is where the program itself was found.
 
 The version is part of the pin and is checked before generation starts. The bytes a generator writes are a property of the generator, so a manifest pinned against one build of `dbgen` says nothing about another, and a digest mismatch on twenty gigabytes of output has nothing in it to suggest that the cause is a release two versions along. One process start buys that sentence.
@@ -53,6 +57,14 @@ Rows are summed across the files of a corpus and columns have to agree between t
 Only files whose declared path ends in `.parquet` are read for a shape, and that is decided from the manifest rather than from the bytes because the manifest is this repository's own statement about what a file is. Silesia and enwik8 are compressed text with no rows or columns at all, and for them the shape check does not apply rather than fails. A file named `.parquet` that turns out not to be Parquet is still a hard error, and a manifest that asserts a shape for a corpus where nothing can carry one is refused, because an assertion nothing checks against is worse than no assertion: on the page it reads like something is being verified.
 
 Unknown fields are an error rather than being ignored. The field most worth typing wrongly is `licence_note`, and a typo that silently does nothing would defeat the one check on this page that has legal weight.
+
+## The corpus identity
+
+A corpus has one digest of its own, printed by `iris-bench corpus` before anything is fetched and computed by `Manifest::identity`. It is taken over the corpus name and then every entry's path, digest and size, sorted by path.
+
+It exists so that a result row can say which corpus it used in one value. `public-bi` and `public-bi-36` are both honestly called Public BI, and even within one of those, a corpus can gain or lose a table between one measurement and the next. A name does not distinguish those cases and the identity does.
+
+Sorted by path, so reordering entries in the file does not move it. Taken over the entries rather than over the manifest text, so a rewritten comment does not move it either. That second one is deliberate: a comment is not a corpus, and an identity that changed when somebody fixed a typo would teach everybody to ignore the field, which costs more than the precision it buys.
 
 ## Digests
 
@@ -71,6 +83,12 @@ The size is checked as well as the digest, even though the digest would catch an
 The digest is computed in the same pass that writes the file rather than by reading it back afterwards. That is not only about speed on a fifteen gigabyte download, although it is that too. It means a file that does not match is deleted rather than left sitting under a name that asserts its own content, so the store's one invariant holds even when a fetch fails halfway.
 
 A file the store already has is never requested. That is not a cache, it is what content addressing means: the manifest already said which bytes it wants, and the store either has those bytes or it does not. Fetching ClickBench a second time on a machine that already has it takes 56 milliseconds including reading the footer and checking the assertions.
+
+Public BI is the largest corpus here by file count rather than by size. The full set is 206 tables across 46 workbooks and 43,334,957,146 bytes of bzip2 compressed CSV, about 386 GB once decompressed. The 36 table subset is 10,547,903,083 bytes. On the 4 vCPU AMD EPYC guest the subset fetched and verified in 19 minutes 16 seconds and the second run took 0.53 seconds, and peak resident memory across the 9.8 GiB fetch was 7.8 MB, because the digest is computed on the bytes as they stream past rather than on a file read back afterwards.
+
+The full set then fetched on the same machine in 45 minutes 6 seconds, at a peak of 8.7 MB, and reported that 62 of its 206 files were already in the store. That number is the whole argument for content addressing in one line. 36 of the 62 were there because the subset had already been fetched, and the other 26 were never downloaded at all, because they are duplicates of tables that arrived earlier in the same run.
+
+206 declared files come to 180 distinct objects. Twenty six of the MLB tables are byte for byte a duplicate of another MLB table, because Tableau extracted that workbook several ways and some of the extracts came out identical. Nothing was written to handle that. The store is addressed by content, so the duplicates collapse on the way in and the corpus still declares all 206 because the benchmark does.
 
 The first fetch of ClickBench on the i9-13900K under Linux took about twenty minutes for 13.8 GiB, arrived at the digest pinned in the manifest, and reported 99,997,497 rows across 105 columns. Those numbers were pinned before the fetch ran, from a separate download hashed with `b3sum` and from the ClickBench documentation, so this was the manifest being checked rather than written.
 

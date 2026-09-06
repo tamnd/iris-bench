@@ -86,8 +86,58 @@ def expect_complaint(name: str, text: str, phrase: str, directory: str = "exampl
         failures.append(f"{name}: expected a complaint containing {phrase!r} and got {said}")
 
 
+def parts(manifests: dict[str, str]) -> list[str]:
+    """Runs the subset check over a set of manifests and returns what it said."""
+    import tomllib
+
+    before = list(discipline.failures)
+    discipline.failures.clear()
+    try:
+        discipline.check_parts({name: tomllib.loads(text) for name, text in manifests.items()})
+        return list(discipline.failures)
+    finally:
+        discipline.failures[:] = before
+
+
+def check_parts_cases() -> None:
+    whole = GOOD.replace('"example"', '"whole"') + (
+        '\n[[files]]\npath = "other.parquet"\n'
+        'blake3 = "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3263"\n'
+        "bytes = 2048\n"
+    )
+    part = GOOD.replace('category = "fetch"', 'category = "fetch"\npart_of = "whole"')
+
+    said = parts({"whole": whole, "example": part})
+    if said:
+        failures.append(f"a real subset: expected no complaint and got {said}")
+
+    said = parts({"example": part})
+    if not any("not in corpora/" in one for one in said):
+        failures.append(f"a subset of nothing: expected a complaint and got {said}")
+
+    strayed = part.replace("example.parquet", "elsewhere.parquet")
+    said = parts({"whole": whole, "example": strayed})
+    if not any("which is not in 'whole'" in one for one in said):
+        failures.append(f"a subset naming a file the whole lacks: got {said}")
+
+    drifted = part.replace("bytes = 1024", "bytes = 4096")
+    said = parts({"whole": whole, "example": drifted})
+    if not any("differently from 'whole'" in one for one in said):
+        failures.append(f"a subset pinning a file differently: got {said}")
+
+    said = parts({"whole": GOOD.replace('"example"', '"whole"'), "example": part})
+    if not any("is not smaller" in one for one in said):
+        failures.append(f"a subset the size of the whole: got {said}")
+
+    circular = GOOD.replace('category = "fetch"', 'category = "fetch"\npart_of = "example"')
+    said = parts({"example": circular})
+    if not any("part of itself" in one for one in said):
+        failures.append(f"a subset of itself: got {said}")
+
+
 def main() -> int:
     expect_clean("a complete manifest passes", GOOD)
+    check_parts_cases()
 
     expect_complaint(
         "a manifest that disagrees with its directory",

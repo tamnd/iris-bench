@@ -63,6 +63,10 @@ pub(crate) fn run(
         if manifest.files.len() == 1 { "" } else { "s" }
     );
     println!("  from {}", manifest.corpus.source);
+    // The one value that says which corpus this is, contents and all. Printed before anything is
+    // fetched, because it is a property of the manifest rather than of the run, and it is what a
+    // result row carries so that "Public BI" in a table means one determinable set of tables.
+    println!("  is {}", manifest.identity());
 
     let store = Store::open(store.unwrap_or_else(|| PathBuf::from(DEFAULT_STORE)))
         .context("opening the corpus store")?;
@@ -107,6 +111,16 @@ pub(crate) fn run(
             } else {
                 ""
             }
+        );
+    }
+    // A corpus of two hundred files prints two hundred lines, and the thing somebody wants off the
+    // end of that is how much of it was already here.
+    let had = arrived.iter().filter(|file| file.deduplicated).count();
+    if arrived.len() > 1 {
+        println!(
+            "  {} of {} files were already in the store",
+            had,
+            arrived.len()
         );
     }
     println!();

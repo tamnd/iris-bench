@@ -34,7 +34,7 @@ Pre-alpha. B0 is done as of `v0.1.0`, so the measuring apparatus exists and the 
 
 What B0 established is in `docs/ROADMAP.md` under that milestone, and the short version is that this fleet can measure, on one machine, for ratios always and for durations under a gate. The noise floor is 1.05% on the one eligible role and over two percent everywhere else, and the harness adds 41.1 ns to a sample, which is under one percent of anything longer than 4.1 microseconds. `iris-bench check`, `noise`, `overhead`, `resident` and `corpus` run today. Nothing else does.
 
-B1 is in progress and is the corpora. ClickBench, TPC-H at scale factor 1 and TPC-H at scale factor 20 are pinned and reproduce, the first by download and the other two from `dbgen`.
+B1 is in progress and is the corpora. ClickBench, TPC-H at scale factor 1 and 20, and Public BI in both the full 206 table set and the 36 table subset are pinned and reproduce, some by download and the TPC-H pair from `dbgen`.
 
 B0 through B4 need no `iris` code to exist, which is deliberate. If `iris` is never built, the reproduction of the published figures and the storage tier study still stand on their own.
 
