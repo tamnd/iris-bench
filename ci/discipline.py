@@ -261,6 +261,15 @@ def check_manifest(manifest_path: pathlib.Path) -> None:
                     f"corpus {name}: {path} has no url and the source is not one either,"
                     f" so there is nowhere to fetch it from"
                 )
+        # A mirrored corpus is served by this repository and its source stays the place the data
+        # came from originally, so the address the bytes come from has to be on the entry.
+        # Resolving it against the source would send the fetch back to the host the mirror exists
+        # because of.
+        if corpus.get("category") == "mirror" and not str(entry.get("url", "")).strip():
+            fail(
+                f"corpus {name}: is mirrored and {path} has no url, so nothing says where"
+                f" this repository serves it from"
+            )
 
 
 def check_generator(name: str, corpus: dict, generator: dict | None) -> None:

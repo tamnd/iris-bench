@@ -93,9 +93,11 @@ pub struct Entry {
     pub bytes: u64,
     /// Where this particular file comes from, when the corpus source does not already say.
     ///
-    /// Left out for almost every corpus. It exists for the case where the files of one corpus are
-    /// not all under one prefix, which is common enough in published datasets that the format
-    /// having no answer for it would mean forking the corpus rather than describing it.
+    /// Left out for almost every fetched corpus. It exists for the case where the files of one
+    /// corpus are not all under one prefix, which is common enough in published datasets that the
+    /// format having no answer for it would mean forking the corpus rather than describing it. A
+    /// mirrored corpus must have it on every entry, because its `source` is the place the data came
+    /// from originally and the whole reason for mirroring is that this may no longer serve it.
     #[serde(default)]
     pub url: Option<String>,
 }
@@ -294,7 +296,7 @@ impl Manifest {
     ///
     /// If the corpus has no name, pins no files, names one file twice, uses a path that could
     /// escape the corpus directory, declares an empty file, or is mirrored without saying what
-    /// permits it.
+    /// permits it and where each of its files is served from.
     pub fn validate(&self) -> Result<(), ManifestError> {
         let name = self.corpus.name.clone();
         let invalid = |problem: String| ManifestError::Invalid {
@@ -329,6 +331,23 @@ impl Manifest {
             return Err(invalid(
                 "mirrored without a licence note saying what permits it".to_owned(),
             ));
+        }
+
+        // A mirrored corpus is served by this repository rather than by whoever published it, and
+        // its `source` stays the place it came from originally, because that is the provenance and
+        // losing it is worse than a dead link. So the address the bytes actually come from has to
+        // be on the entry. Resolving a mirrored file against `source` would quietly send the fetch
+        // back to the host the mirror exists because of.
+        if self.corpus.category == Category::Mirror {
+            for entry in &self.files {
+                if entry.url.as_ref().is_none_or(|url| url.trim().is_empty()) {
+                    return Err(invalid(format!(
+                        "is mirrored and {} has no url, so nothing says where this repository \
+                         serves it from",
+                        entry.path
+                    )));
+                }
+            }
         }
 
         // Whether the entries really are a subset needs the other manifest and is checked where
@@ -498,11 +517,23 @@ mod tests {
     #[test]
     fn a_mirrored_corpus_with_a_licence_note_is_accepted() {
         let text = manifest("licence_note = \"Public domain, so redistribution is permitted\"")
-            .replace("\"fetch\"", "\"mirror\"");
+            .replace("\"fetch\"", "\"mirror\"")
+            .replace(
+                "bytes = 1024",
+                "bytes = 1024\nurl = \"https://ours.invalid/example.parquet\"",
+            );
         assert_eq!(
             Manifest::parse(&text).unwrap().corpus.category,
             Category::Mirror
         );
+    }
+
+    #[test]
+    fn a_mirrored_file_that_does_not_say_where_it_is_served_from_is_refused() {
+        let text = manifest("licence_note = \"Public domain, so redistribution is permitted\"")
+            .replace("\"fetch\"", "\"mirror\"");
+        let error = Manifest::parse(&text).unwrap_err();
+        assert!(format!("{error}").contains("no url"));
     }
 
     /// A second file, so identity has something to be order independent about.

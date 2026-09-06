@@ -12,6 +12,12 @@
 //! that resolves to the source unchanged, which is the common case and needs nothing written down.
 //! For a corpus of many files under one directory, `source` names any one of them, or the directory
 //! with a trailing slash, and each entry's path is appended.
+//!
+//! A mirrored corpus is downloaded by this same code. The category says who serves the bytes and
+//! what permits them to, which is a licensing fact rather than a transport one, and it is why a
+//! mirrored entry must carry its own `url`: `source` stays the place the data came from
+//! originally, so resolving against it would send the fetch back to the host the mirror exists
+//! because of.
 
 use std::{io, time::Duration};
 
@@ -47,8 +53,8 @@ pub struct Fetched {
 pub enum FetchError {
     /// The corpus is not one that can be downloaded.
     #[error(
-        "{name} is a {category} corpus, so there is nothing to fetch. A generated corpus is \
-         produced locally and a mirrored one is already in the tree"
+        "{name} is a {category} corpus, so there is nothing to fetch. It is produced locally, by \
+         `iris-bench corpus {name} --generator <path>`"
     )]
     NotFetchable {
         /// Which corpus.
@@ -178,7 +184,11 @@ pub fn corpus(
     store: &Store,
     watch: &mut dyn FnMut(Progress<'_>),
 ) -> Result<Vec<Fetched>, FetchError> {
-    if manifest.corpus.category != Category::Fetch {
+    // A mirrored corpus is downloaded the same way a fetched one is, over the same HTTP, checked
+    // against the same digests. The category is about who is serving the bytes and what permits
+    // them to, which is a licensing fact rather than a transport one. Only a generated corpus has
+    // nothing to download.
+    if manifest.corpus.category == Category::Generate {
         return Err(FetchError::NotFetchable {
             name: manifest.corpus.name.clone(),
             category: manifest.corpus.category,
@@ -434,6 +444,24 @@ mod tests {
         let store = Store::open(dir.path()).unwrap();
         let error = corpus(&generated, &store, &mut |_| {}).unwrap_err();
         assert!(matches!(error, FetchError::NotFetchable { .. }));
+    }
+
+    #[test]
+    fn a_mirrored_corpus_is_downloaded_like_any_other() {
+        // The source is unreachable on purpose, and the store already holds the one file, so this
+        // passing means the mirror category got as far as asking the store rather than being
+        // refused for being the wrong kind of corpus.
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        store.insert_bytes(b"").unwrap();
+
+        let mut mirrored = manifest(
+            "https://nothing.invalid/silesia.zip",
+            &file("dickens", "url = \"https://ours.invalid/silesia-dickens\""),
+        );
+        mirrored.corpus.category = Category::Mirror;
+        let fetched = corpus(&mirrored, &store, &mut |_| {}).unwrap();
+        assert!(fetched[0].deduplicated);
     }
 
     #[test]
