@@ -34,6 +34,8 @@ Pre-alpha. B0 is done as of `v0.1.0`, so the measuring apparatus exists and the 
 
 What B0 established is in `docs/ROADMAP.md` under that milestone, and the short version is that this fleet can measure, on one machine, for ratios always and for durations under a gate. The noise floor is 1.05% on the one eligible role and over two percent everywhere else, and the harness adds 41.1 ns to a sample, which is under one percent of anything longer than 4.1 microseconds. `iris-bench check`, `noise`, `overhead`, `resident` and `corpus` run today. Nothing else does.
 
+B1 is in progress and is the corpora. ClickBench, TPC-H at scale factor 1 and TPC-H at scale factor 20 are pinned and reproduce, the first by download and the other two from `dbgen`.
+
 B0 through B4 need no `iris` code to exist, which is deliberate. If `iris` is never built, the reproduction of the published figures and the storage tier study still stand on their own.
 
 ## Layout
@@ -68,6 +70,12 @@ cargo run -p iris-bench-cli -- corpus clickbench-hits --store /var/tmp/iris-corp
 ```
 
 The digest is checked in the same pass that writes the file, so bytes that are not what the manifest promised never land in the store. The asserted row and column counts are checked after, which is what catches a download that stopped early and still parses. `docs/CORPORA.md` is the format.
+
+A generated corpus is the same command with the generator pointed at. Nothing is downloaded and nothing is redistributed, and the tool checks that the generator is the pinned version before it produces a byte, because a different generator writes different bytes and a digest mismatch on its own does not say which of those two things went wrong.
+
+```
+cargo run -p iris-bench-cli -- corpus tpch-sf1 --generator ~/tpch-kit/dbgen/dbgen --store /var/tmp/iris-corpus
+```
 
 ## Machines
 

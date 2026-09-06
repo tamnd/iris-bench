@@ -40,6 +40,12 @@ columns = 105
 
 An entry may also carry `url`, and almost none do. Without it the file's URL is its path resolved against the corpus `source` in the ordinary way, meaning everything after the last slash of `source` is replaced by the path. For a single file corpus whose source is the file itself that resolves back to the source unchanged, which is why the common case needs nothing written down. For a corpus of many files under one prefix, `source` names the directory with a trailing slash and each path is appended. `url` exists for the case where one corpus is assembled from files that are not under a common prefix, which happens often enough in published datasets that a format with no answer for it would mean forking a corpus rather than describing it.
 
+`[generator]` says what produces a generated corpus, and only a generated corpus may have one. A manifest carrying both a generator and a download location is making two claims about one set of bytes, and the second of those is the one that goes unread. It has a `program` to run, `arguments` to pass it, a `version` that must appear in what the program says about itself, `version_arguments` that make it say so, and an `environment` table for anything the program needs to be told through the environment rather than on the command line. The working directory is the output directory, and two placeholders are substituted into environment values: `{output}` is where the files should land and `{program_directory}` is where the program itself was found.
+
+The version is part of the pin and is checked before generation starts. The bytes a generator writes are a property of the generator, so a manifest pinned against one build of `dbgen` says nothing about another, and a digest mismatch on twenty gigabytes of output has nothing in it to suggest that the cause is a release two versions along. One process start buys that sentence.
+
+The generator itself is never in this repository. TPC's tools are downloaded under TPC's own end user agreement by whoever runs the generation, which is why `--generator` exists on `iris-bench corpus` and why the error when the program is absent says where to get one rather than what a missing file is.
+
 `[assertions]` is optional and is checked after the corpus loads rather than after it downloads. ClickBench is 99,997,497 rows across 105 columns or the manifest is wrong, and an assertion catches that far more cheaply than a number that looks slightly off six weeks later. Both fields are optional because not every corpus is tabular, and a corpus that asserts neither gets told so on every fetch rather than passing quietly.
 
 Rows are summed across the files of a corpus and columns have to agree between them, because a corpus split across files is one table and files with different schemas are not one table however they are named. Both counts come out of the Parquet footer, which is a seek and a few kilobytes rather than a pass over the data, and that is what makes it affordable to check before every measurement instead of once when the corpus was added.
@@ -67,6 +73,34 @@ The digest is computed in the same pass that writes the file rather than by read
 A file the store already has is never requested. That is not a cache, it is what content addressing means: the manifest already said which bytes it wants, and the store either has those bytes or it does not. Fetching ClickBench a second time on a machine that already has it takes 56 milliseconds including reading the footer and checking the assertions.
 
 The first fetch of ClickBench on the i9-13900K under Linux took about twenty minutes for 13.8 GiB, arrived at the digest pinned in the manifest, and reported 99,997,497 rows across 105 columns. Those numbers were pinned before the fetch ran, from a separate download hashed with `b3sum` and from the ClickBench documentation, so this was the manifest being checked rather than written.
+
+## Generating
+
+`iris-bench corpus <name> --generator <path>` is the same command with the bytes produced locally instead of downloaded. The order is the same and so is what it buys: the manifest is validated, the store is asked what it already has, the generator's version is checked, the scratch directory is emptied, the generator runs, and only then is each declared file digested and inserted.
+
+The dedup check comes before the generator starts rather than before each file, which is the one place the generated path differs from the fetched one and the difference is not cosmetic. Fetching is per file, so skipping a file that is already present skips the download of that file. A generator writes its whole output in one run, so the question worth asking is whether the entire corpus is already in the store, and asking it early is what turns a second `tpch-sf20` on a machine that already has it from three minutes into nothing.
+
+The scratch directory is emptied rather than written into. A generator that fails halfway through leaves a short file behind, and a short file with the right name is exactly the input that makes the next run's digest mismatch look like a generator bug.
+
+The version probe runs the generator with `version_arguments`, reads stdout and stderr together, and ignores the exit status. A program printing its usage commonly exits non zero, and `dbgen -h` does, so treating that as a failure would mean no version could ever be checked. What matters is whether the pinned version string appears in what came back.
+
+Two placeholders are substituted into the environment values. `{output}` is the scratch directory, which is where the files are expected to land. `{program_directory}` is the directory the generator was found in, which `dbgen` needs because it reads its column distributions from `dists.dss` sitting beside the binary rather than from anywhere a package manager would put it. Both of those are facts about `dbgen` and they live in its manifest, so the code that runs a generator knows nothing about any particular one.
+
+A generated corpus carries no `[assertions]` block, and that is a rule about what an assertion is for rather than an omission. ClickBench asserts its shape because its digest is a claim about a file on somebody else's server, so a second check that arrives at the same number by a different route is worth having. For a corpus generated and pinned file by file, 6,001,215 lineitem rows is what those bytes are, not something they could fail to be, and a row count asserted next to a digest that already implies it reads on the page like two things are being verified.
+
+TPC-H is generated with `dbgen` 2.17.3, which is not in this repository. TPC's own tools are downloaded under TPC's end user agreement by whoever runs the generation. On macOS the build is `make CC=cc DATABASE=POSTGRESQL MACHINE=MACOS WORKLOAD=TPCH`, and on Linux with gcc 15 it needs `CC="cc -std=gnu17"` because gnu23 is now the default and the K&R prototypes in that source do not survive it.
+
+Scale factor 1 is 1,092,031,885 bytes across eight files and 8,661,245 rows. It generates in 12.75 seconds on the i9-13900K under Linux and in 2 minutes 20 on the Apple silicon laptop. It exists so a change can be tried in under a minute.
+
+Scale factor 20 is 22,459,651,466 bytes and 173,194,638 rows, and generates in 196.33 seconds on the i9-13900K under Linux. 20 is deliberately not a compliant TPC-H scale factor. It is the size that stops fitting comfortably in cache on the workstation class, and a benchmark that fits in cache measures the cache. Every published row carrying one of these numbers is marked as a deviation by `bench_report` rather than in a footnote somebody writes.
+
+`nation.tbl` and `region.tbl` are byte for byte identical between the two scale factors, because those two tables do not scale. The store holds them once across both corpora, which is the content addressing doing what it was built for rather than a case anybody handled.
+
+All eight scale factor 1 digests are identical on macOS on Apple silicon and on Linux on x86-64, so what is pinned is stable across a different operating system on a different architecture rather than across two runs on one machine.
+
+Scale factor 20 was generated twice on unrelated machines, on the i9-13900K under Ubuntu 25.10 with gcc 15.2 and on a 4 vCPU AMD EPYC guest under Ubuntu 24.04, and all eight digests and all eight row counts came out the same. Different CPU vendor, different distribution, different compiler. The EPYC guest took about eighteen minutes against 196.33 seconds on the workstation, which is a fact about the guest rather than about `dbgen`.
+
+Scale factor 20 has not been generated on arm64 Linux, because no machine in the fleet has 22 GiB of free disk on that architecture. That is a gap in the evidence and it is written here rather than left to be inferred from what the table does not say.
 
 ## The store
 

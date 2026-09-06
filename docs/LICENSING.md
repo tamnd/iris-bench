@@ -26,6 +26,10 @@ What we do:
 
 The distinction that matters: an unaudited run of a query set derived from a public specification is a legitimate and common thing to publish. Calling it a TPC-H Result is not. The two are one sentence apart and the sentence is load bearing.
 
+Five of those rules are code rather than intentions, in `crates/bench-report/src/tpc.rs` and `crates/bench-report/src/page.rs`. `Family::of` reads the family off the workload identifier, so a TPC workload is recognised as one without anybody remembering to mark it. `Family::label` is the only name the report layer can print for such a workload and it already contains "derived from", so there is no spelling of `tpch-sf1` that a page can render as a bare TPC-H. `Page::render` collects the trademark notice from its own rows, so a page carrying a TPC number and a page carrying the attribution are the same page. `Row::cited` refuses an official TPC Result as a comparison rather than accepting it and flagging it later. `Row::note` marks a non-compliant scale factor in the row itself, which is what scale factor 20 is and why it says so. `tpc::check` refuses a workload whose name claims both a TPC family and a skew, because that is the merge this page forbids.
+
+The rules that are not code are the ones with no shape to check: whether a sentence in a blog post describes a number honestly is not something a type can hold. The ones above were picked because each of them is a mistake somebody makes while being careful, rather than while being careless.
+
 ## ClickBench
 
 ClickBench's data and query set are published by ClickHouse under the Apache License 2.0. The benchmark's own rules are followed exactly when running under its protocol: all 43 queries, three runs, the second and third used, the geometric mean reported, and the combined score computed the way the leaderboard computes it, from load time, storage size, cold runs and hot runs.

@@ -15,24 +15,29 @@
 //! are then referring to the same bytes rather than to the same file name, which is the property
 //! that makes a result worth re-running.
 //!
-//! # What a fetch guarantees
+//! # What arriving guarantees
 //!
 //! [`fetch::corpus`] downloads what a manifest names and hashes it in the same pass that writes it,
-//! so bytes that are not what was promised never reach the store. [`shape::check`] then reads the
-//! Parquet footers and refuses a corpus that is not the row and column count the manifest asserted,
-//! which is the check that catches a download that stopped early and still parses.
-//!
-//! Generation is not implemented yet. See B1 in `docs/ROADMAP.md`.
+//! so bytes that are not what was promised never reach the store. [`generate::corpus`] does the same
+//! for a corpus produced locally, with a generator where the network would be, and checks the
+//! generator's version first because the bytes a generator writes are a property of the generator.
+//! [`shape::check`] then reads the Parquet footers and refuses a corpus that is not the row and
+//! column count the manifest asserted, which is the check that catches a download that stopped early
+//! and still parses.
 
 mod digest;
 pub mod fetch;
+pub mod generate;
 mod manifest;
+mod progress;
 pub mod shape;
 mod store;
 
 pub use digest::{Digest, DigestError};
-pub use fetch::{FetchError, Fetched, Progress};
-pub use manifest::{Assertions, Category, Corpus, Entry, Manifest, ManifestError};
+pub use fetch::{FetchError, Fetched};
+pub use generate::{GenerateError, Generated};
+pub use manifest::{Assertions, Category, Corpus, Entry, Generator, Manifest, ManifestError};
+pub use progress::Progress;
 pub use shape::{Shape, ShapeError};
 pub use store::{Inserted, Store, StoreError};
 
