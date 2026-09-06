@@ -27,8 +27,9 @@ use arrow_array::{
 };
 use arrow_schema::{DataType, Field, Schema, TimeUnit};
 use bench_driver::{Driver, Format, Load, Session, Setup};
+use bench_run::{Schedule, Scheduled, Seed};
 use bench_workload::clickbench;
-use bench_workload::{Outcome, RUNS, Report, Warm, compare};
+use bench_workload::{Outcome, RUNS, Report, Warm, Workload, compare};
 use parquet::arrow::ArrowWriter;
 
 /// The create statement `ClickBench` publishes for `DuckDB`, verbatim.
@@ -188,8 +189,92 @@ fn a_query_the_engines_answer_differently_would_be_caught() {
     assert!(!comparison.clean());
 }
 
+#[test]
+fn a_recorded_seed_replays_the_order_the_queries_ran_in() {
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let file = write_hits(scratch.path());
+    let seed = Seed::from(0xc0ff_ee00_1234_5678);
+
+    let mut duckdb = driver_duckdb::DuckDb::new();
+    let shuffled = with_session(&mut duckdb, scratch.path(), &file, |session, workload| {
+        bench_run::run(session, workload, &mut Warm, seed, 0)
+    });
+
+    // The report is in the order the queries ran rather than in the order the file lists them, and
+    // every query ran exactly once. A shuffle that dropped one and ran another twice would still
+    // produce forty three rows, so the second half of that is worth asserting separately.
+    let listed: Vec<String> = (0..clickbench::QUERIES)
+        .map(|at| format!("q{at}"))
+        .collect();
+    let ran: Vec<&str> = shuffled
+        .report
+        .queries
+        .iter()
+        .map(|query| query.id.as_str())
+        .collect();
+    assert_eq!(ran.len(), clickbench::QUERIES);
+    assert_ne!(ran, listed);
+    let mut once = ran.clone();
+    once.sort_unstable();
+    once.dedup();
+    assert_eq!(once.len(), clickbench::QUERIES);
+
+    // The seed survives being written down and read back, and the order comes out of it again with
+    // none of the rest of the run in hand. That is the whole claim: a result row carries what
+    // somebody else needs to run the same schedule.
+    let written = serde_json::to_string(&shuffled).expect("a scheduled run serialises");
+    let read: Scheduled = serde_json::from_str(&written).expect("and reads back");
+    assert_eq!(read.schedule.seed(), seed);
+    assert_eq!(read.schedule.pass(), 0);
+
+    let replayed = Schedule::new(read.schedule.seed(), read.schedule.pass(), listed.len());
+    assert_eq!(replayed.order(), shuffled.schedule.order());
+    let replayed_ids: Vec<&str> = replayed
+        .apply(&listed)
+        .into_iter()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(replayed_ids, ran);
+
+    // Running them in a different order is a different measurement and it had better not be a
+    // different answer. If it is, the shuffle is carrying state between queries that nothing should
+    // be carrying.
+    let mut again = driver_duckdb::DuckDb::new();
+    let plain = measure(&mut again, scratch.path(), &file);
+    for query in &plain.queries {
+        let same = shuffled
+            .report
+            .queries
+            .iter()
+            .find(|other| other.id == query.id)
+            .expect("the shuffled run has every query the plain one does");
+        assert_eq!(
+            same.digest(),
+            query.digest(),
+            "{} answered differently when it ran in another position",
+            query.id,
+        );
+    }
+}
+
 /// Runs the whole workload against one system, from an unstarted driver.
 fn measure(driver: &mut dyn Driver, scratch: &Path, file: &Path) -> Report {
+    with_session(driver, scratch, file, |session, workload| {
+        bench_workload::measure(session, workload, &mut Warm)
+    })
+}
+
+/// Starts one system, gives it the table, and hands back a session and the set of queries that
+/// system is measured with.
+///
+/// A closure rather than a returned session, because a session borrows the driver it drives and a
+/// test that wants both has to keep them on the same stack frame.
+fn with_session<T>(
+    driver: &mut dyn Driver,
+    scratch: &Path,
+    file: &Path,
+    take: impl FnOnce(&mut Session<'_>, &Workload) -> T,
+) -> T {
     let dialect = clickbench::dialect(driver.name()).expect("every driver here has a set");
     let workload = clickbench::workload(dialect);
     let directory = scratch.join(driver.name());
@@ -211,7 +296,7 @@ fn measure(driver: &mut dyn Driver, scratch: &Path, file: &Path) -> Report {
         })
         .expect("the system takes the table");
 
-    bench_workload::measure(&mut session, &workload, &mut Warm)
+    take(&mut session, &workload)
 }
 
 /// Writes the fixture and returns where it went.
