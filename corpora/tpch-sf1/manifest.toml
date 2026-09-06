@@ -1,0 +1,78 @@
+# TPC-H at scale factor 1, the size that exists so a change can be tried in under a minute.
+#
+# Generated locally and never redistributed. The licence field names the terms the tools arrive
+# under rather than terms on the data, because TPC's tools are downloaded under TPC's own end user
+# agreement by whoever runs the generation and are not in this repository. docs/LICENSING.md says
+# what that means for anything published from these tables.
+#
+# The version below is part of the pin and is checked before generation starts. dbgen is
+# deterministic given a scale factor, so the digests are stable, and they are stable across a
+# different operating system on a different architecture rather than only across two runs on one
+# machine. What they are not stable across is a different dbgen, and a digest mismatch on a
+# gigabyte of output says nothing at all about which of those two things happened unless the version
+# was checked first.
+#
+# There is no [assertions] block. For a corpus generated file by file and pinned file by file, the
+# digest already says everything a row count would: 6,001,215 lineitem rows is what these bytes are,
+# not something they could fail to be. ClickBench asserts its shape because the digest there is a
+# claim about a file on somebody else's server.
+
+[corpus]
+name = "tpch-sf1"
+description = "The TPC-H tables at scale factor 1, generated with dbgen and never redistributed"
+source = "TPC-H dbgen 2.17.3, scale factor 1"
+licence = "TPC tools EULA"
+category = "generate"
+
+[generator]
+program = "dbgen"
+arguments = ["-s", "1", "-f"]
+version = "2.17.3"
+version_arguments = ["-h"]
+
+# dbgen writes to DSS_PATH and reads its column distributions from dists.dss, which lives beside the
+# binary rather than anywhere a package manager would put it. Both are facts about dbgen rather than
+# about generators, which is why they are written here and not in the code that runs it.
+[generator.environment]
+DSS_PATH = "{output}"
+DSS_CONFIG = "{program_directory}"
+
+[[files]]
+path = "customer.tbl"
+blake3 = "f22501b1d9ebdc8e08d4a2a925d55b54b6927549886c30227a47b2602dec9b52"
+bytes = 24196144
+
+[[files]]
+path = "lineitem.tbl"
+blake3 = "cb8c9a123316d2e0b8d699354ed32b917ca14a45bf266e3d17688dab95530198"
+bytes = 753862072
+
+[[files]]
+path = "nation.tbl"
+blake3 = "c13f500e0360abb6b1fb8055daddfd929d258fa1808df0d0dd7e3d962b49259d"
+bytes = 2199
+
+[[files]]
+path = "orders.tbl"
+blake3 = "07f4e603775a9227769944d9daa8f892a67138166c6419410a39f58eed4ece84"
+bytes = 170452161
+
+[[files]]
+path = "part.tbl"
+blake3 = "499329360d06d88cc7c1c9a5f60c95bc4e2cff6702e27eda301af1cf47365471"
+bytes = 23935125
+
+[[files]]
+path = "partsupp.tbl"
+blake3 = "8ba8c05a6c940518bc7b12c94afe48ed1a58ba817413114cf07180681ec3a3ef"
+bytes = 118184616
+
+[[files]]
+path = "region.tbl"
+blake3 = "bf437aa6ea633c1364c370428cc542cc9996039fcbaebf4f2ddf6232549bd843"
+bytes = 384
+
+[[files]]
+path = "supplier.tbl"
+blake3 = "6807c33d3b1f89c9f7c4991b81f1f86c0c6b04c9d7290df88fb99519c986b463"
+bytes = 1399184

@@ -13,14 +13,12 @@
 //! For a corpus of many files under one directory, `source` names any one of them, or the directory
 //! with a trailing slash, and each entry's path is appended.
 
-use std::{
-    io::{self, Read},
-    time::Duration,
-};
+use std::{io, time::Duration};
 
 use crate::{
     digest::Digest,
     manifest::{Category, Entry, Manifest},
+    progress::{Counting, Progress},
     store::{Store, StoreError},
 };
 
@@ -30,9 +28,6 @@ use crate::{
 /// upper bound on how long that takes on an unknown link is not a number anybody can write down, so
 /// the timeout that exists is the one that catches a host which is not answering at all.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
-
-/// How often to tell the caller how far along a download is, in bytes.
-const REPORT_EVERY: u64 = 64 << 20;
 
 /// What a fetch did to one file.
 #[derive(Clone, Debug)]
@@ -45,17 +40,6 @@ pub struct Fetched {
     pub bytes: u64,
     /// Whether the store already had it, in which case nothing was downloaded.
     pub deduplicated: bool,
-}
-
-/// How far along one file is.
-#[derive(Clone, Copy, Debug)]
-pub struct Progress<'a> {
-    /// The path inside the corpus.
-    pub path: &'a str,
-    /// How many bytes have arrived.
-    pub done: u64,
-    /// How many the manifest says there are.
-    pub total: u64,
 }
 
 /// Why a corpus did not arrive.
@@ -320,14 +304,12 @@ fn one(
     let url = url_for(manifest, entry)?;
     let response = client.get(&url)?;
 
-    let mut counting = Counting {
-        inner: response.into_body().into_reader(),
-        seen: 0,
-        next: REPORT_EVERY,
-        path: &entry.path,
-        total: entry.bytes,
+    let mut counting = Counting::new(
+        response.into_body().into_reader(),
+        &entry.path,
+        entry.bytes,
         watch,
-    };
+    );
     let inserted = store.insert_stream(&mut counting, &entry.blake3);
     let found = counting.seen;
 
@@ -361,38 +343,6 @@ fn one(
         bytes: found,
         deduplicated: inserted.deduplicated,
     })
-}
-
-/// A reader that counts what goes through it and says so every so often.
-struct Counting<'a, R> {
-    /// The reader the bytes are actually coming from.
-    inner: R,
-    /// How many have gone through.
-    seen: u64,
-    /// The count at which to report next.
-    next: u64,
-    /// Which file, for the report.
-    path: &'a str,
-    /// How many bytes the manifest says there are, for the report.
-    total: u64,
-    /// Who to tell.
-    watch: &'a mut dyn FnMut(Progress<'_>),
-}
-
-impl<R: Read> Read for Counting<'_, R> {
-    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
-        let read = self.inner.read(buffer)?;
-        self.seen += read as u64;
-        if self.seen >= self.next || read == 0 {
-            self.next = self.seen + REPORT_EVERY;
-            (self.watch)(Progress {
-                path: self.path,
-                done: self.seen,
-                total: self.total,
-            });
-        }
-        Ok(read)
-    }
 }
 
 #[cfg(test)]

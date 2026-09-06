@@ -1,0 +1,73 @@
+# TPC-H at scale factor 20, the size that stops fitting comfortably in cache on the workstation
+# class. That is the whole reason for it: scale factor 1 fits in the last level cache of a modern
+# desktop part, and a benchmark that fits in cache measures the cache.
+#
+# 20 is not a compliant TPC-H scale factor. The specification defines 1, 10, 30 and upwards, and 20
+# is in the gap on purpose. Every row of published output carrying one of these numbers is marked as
+# a deviation by bench_report, which is a rule that runs rather than a rule somebody remembers.
+#
+# Generated locally and never redistributed, same as scale factor 1, and the licence field names the
+# terms TPC's tools arrive under rather than terms on the data for the same reason. The version below
+# is checked before generation starts. nation.tbl and region.tbl are byte for byte
+# what scale factor 1 produces, because those two tables do not scale, so the store holds them once
+# across both corpora rather than twice.
+
+[corpus]
+name = "tpch-sf20"
+description = "The TPC-H tables at scale factor 20, generated with dbgen and never redistributed"
+source = "TPC-H dbgen 2.17.3, scale factor 20"
+licence = "TPC tools EULA"
+category = "generate"
+
+[generator]
+program = "dbgen"
+arguments = ["-s", "20", "-f"]
+version = "2.17.3"
+version_arguments = ["-h"]
+
+# dbgen writes to DSS_PATH and reads its column distributions from dists.dss, which lives beside the
+# binary rather than anywhere a package manager would put it. Both are facts about dbgen rather than
+# about generators, which is why they are written here and not in the code that runs it.
+[generator.environment]
+DSS_PATH = "{output}"
+DSS_CONFIG = "{program_directory}"
+
+[[files]]
+path = "customer.tbl"
+blake3 = "a4d31542fe55a4c053d2accc1abab5a6a2b0ad50ac20cdb4c84d019e79e5845a"
+bytes = 487806602
+
+[[files]]
+path = "lineitem.tbl"
+blake3 = "6aa4da6bb7426701367b57d1296b7b3fb57e5024f4128177a6470fb293337c46"
+bytes = 15565406377
+
+[[files]]
+path = "nation.tbl"
+blake3 = "c13f500e0360abb6b1fb8055daddfd929d258fa1808df0d0dd7e3d962b49259d"
+bytes = 2199
+
+[[files]]
+path = "orders.tbl"
+blake3 = "c5fa30d43972d68168e9b9e0c7706b12f8e31d3ce0ee4901f860b5a413bdf239"
+bytes = 3487488366
+
+[[files]]
+path = "part.tbl"
+blake3 = "fd7b9f5cca4b2f9316dc1799be1b6257f33d8ae335d6a8f394af77e11b6a1ad9"
+bytes = 483760640
+
+[[files]]
+path = "partsupp.tbl"
+blake3 = "5ea2e9931aedef8375ca9bb53a0e15e013bd41e01ec02df6288ef36ebc862997"
+bytes = 2406915386
+
+[[files]]
+path = "region.tbl"
+blake3 = "bf437aa6ea633c1364c370428cc542cc9996039fcbaebf4f2ddf6232549bd843"
+bytes = 384
+
+[[files]]
+path = "supplier.tbl"
+blake3 = "7b40e8399dd1e9f362c923e79fd919b64c424f1346f23d98f4581925e62ba7ed"
+bytes = 28271512

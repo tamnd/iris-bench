@@ -1,10 +1,10 @@
 //! `iris-bench corpus`, which gets a corpus onto the machine and then refuses to believe it.
 //!
 //! Three things happen in order and the order is the point. The manifest is read and validated, so
-//! a corpus that describes itself badly never reaches the network. The files are fetched and hashed
-//! in the same pass, so bytes that are not what was promised never reach the store. The footers are
-//! read and checked against the asserted row and column counts, so a corpus that is short never
-//! reaches a measurement.
+//! a corpus that describes itself badly never reaches the network or a generator. The files are
+//! fetched or generated and hashed in the same pass, so bytes that are not what was promised never
+//! reach the store. The footers are read and checked against the asserted row and column counts, so
+//! a corpus that is short never reaches a measurement.
 //!
 //! The last of those is the one worth being explicit about. A digest catches a file that changed
 //! and says nothing about a corpus assembled from the wrong set of files, and a download that stops
@@ -13,7 +13,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, bail};
-use bench_corpus::{Manifest, Progress, Shape, Store, fetch, shape};
+use bench_corpus::{Category, Manifest, Progress, Shape, Store, fetch, generate, shape};
 
 /// Where corpora are described, relative to the repository root.
 const CORPORA: &str = "corpora";
@@ -21,8 +21,27 @@ const CORPORA: &str = "corpora";
 /// Where the bytes go when nothing else says.
 const DEFAULT_STORE: &str = "corpus";
 
-/// Reads a corpus manifest, fetches what it names, and checks what arrived.
-pub(crate) fn run(name: &str, root: Option<PathBuf>, store: Option<PathBuf>) -> anyhow::Result<()> {
+/// Where a generator is allowed to write when nothing else says.
+const DEFAULT_SCRATCH: &str = "corpus-scratch";
+
+/// What a corpus did to one file, whichever way it arrived.
+struct Arrived {
+    /// The path inside the corpus.
+    path: String,
+    /// What the file is addressed by.
+    digest: bench_corpus::Digest,
+    /// Whether the store already had it, in which case nothing arrived at all.
+    deduplicated: bool,
+}
+
+/// Reads a corpus manifest, gets what it names, and checks what arrived.
+pub(crate) fn run(
+    name: &str,
+    root: Option<PathBuf>,
+    store: Option<PathBuf>,
+    generator: Option<&Path>,
+    scratch: Option<PathBuf>,
+) -> anyhow::Result<()> {
     let root = root.unwrap_or_else(|| PathBuf::from(CORPORA));
     let path = root.join(name).join("manifest.toml");
     if !path.is_file() {
@@ -51,10 +70,33 @@ pub(crate) fn run(name: &str, root: Option<PathBuf>, store: Option<PathBuf>) -> 
     println!();
 
     let mut last = String::new();
-    let fetched = fetch::corpus(&manifest, &store, &mut |progress| {
-        report(&mut last, &progress);
-    })?;
-    for file in &fetched {
+    let arrived = match manifest.corpus.category {
+        Category::Generate => {
+            let scratch = scratch.unwrap_or_else(|| PathBuf::from(DEFAULT_SCRATCH));
+            generate::corpus(&manifest, &store, generator, &scratch, &mut |progress| {
+                report(&mut last, &progress);
+            })?
+            .into_iter()
+            .map(|file| Arrived {
+                path: file.path,
+                digest: file.digest,
+                deduplicated: file.deduplicated,
+            })
+            .collect()
+        }
+        _ => fetch::corpus(&manifest, &store, &mut |progress| {
+            report(&mut last, &progress);
+        })?
+        .into_iter()
+        .map(|file| Arrived {
+            path: file.path,
+            digest: file.digest,
+            deduplicated: file.deduplicated,
+        })
+        .collect::<Vec<_>>(),
+    };
+
+    for file in &arrived {
         println!(
             "  {}  {}  {}{}",
             if file.deduplicated { "have" } else { "got " },
@@ -178,7 +220,14 @@ mod tests {
         std::fs::create_dir(dir.path().join("clickbench-hits")).unwrap();
         std::fs::write(dir.path().join("clickbench-hits").join("manifest.toml"), "").unwrap();
 
-        let error = run("not-a-corpus", Some(dir.path().to_owned()), None).unwrap_err();
+        let error = run(
+            "not-a-corpus",
+            Some(dir.path().to_owned()),
+            None,
+            None,
+            None,
+        )
+        .unwrap_err();
         assert!(format!("{error}").contains("clickbench-hits"));
     }
 

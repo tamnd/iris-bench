@@ -63,6 +63,13 @@ MANIFEST_FIELDS = {
         "licence_note",
     },
     "files": {"path", "blake3", "bytes", "url"},
+    "generator": {
+        "program",
+        "arguments",
+        "version",
+        "version_arguments",
+        "environment",
+    },
     "assertions": {"rows", "columns"},
 }
 
@@ -158,6 +165,7 @@ def check_manifest(manifest_path: pathlib.Path) -> None:
             fail(f"corpus {name}: '{table}' is not part of this format, see docs/CORPORA.md")
     check_fields(name, "corpus", corpus, MANIFEST_FIELDS["corpus"])
     check_fields(name, "assertions", manifest.get("assertions", {}), MANIFEST_FIELDS["assertions"])
+    check_fields(name, "generator", manifest.get("generator", {}), MANIFEST_FIELDS["generator"])
     for entry in manifest.get("files", []):
         check_fields(name, "files", entry, MANIFEST_FIELDS["files"])
 
@@ -181,6 +189,8 @@ def check_manifest(manifest_path: pathlib.Path) -> None:
     # it permits.
     if corpus.get("category") == "mirror" and not str(corpus.get("licence_note", "")).strip():
         fail(f"corpus {name}: mirrored without a licence note saying what permits it")
+
+    check_generator(name, corpus, manifest.get("generator"))
 
     files = manifest.get("files", [])
     if not files:
@@ -210,6 +220,57 @@ def check_manifest(manifest_path: pathlib.Path) -> None:
                     f"corpus {name}: {path} has no url and the source is not one either,"
                     f" so there is nowhere to fetch it from"
                 )
+
+
+def check_generator(name: str, corpus: dict, generator: dict | None) -> None:
+    """A generated corpus says what produces it, and no other kind may.
+
+    A manifest carrying both a generator and a download location is making two
+    claims about one set of bytes, and the second of those is the one that would
+    go unread.
+    """
+    category = corpus.get("category")
+    if category == "generate" and generator is None:
+        fail(f"corpus {name}: generated without a [generator], so nothing says how")
+        return
+    if generator is not None and category != "generate":
+        fail(
+            f"corpus {name}: has a [generator] and is a {category!r} corpus, which are two"
+            f" different answers to where the bytes come from"
+        )
+        return
+    if generator is None:
+        return
+
+    # The source of a generated corpus names the generator, so a URL there is a
+    # statement that these bytes are downloaded, which they are not.
+    if str(corpus.get("source", "")).startswith(("http://", "https://")):
+        fail(
+            f"corpus {name}: is generated and its source is a URL, so the manifest says both"
+            f" that the bytes are produced here and that they are downloaded"
+        )
+
+    for field in ("program", "version"):
+        if not str(generator.get(field, "")).strip():
+            fail(f"corpus {name}: the generator has no '{field}'")
+
+    # The version is what turns a digest mismatch on gigabytes of output into a
+    # sentence about which dbgen is installed, so an unprobeable version is worse
+    # than no version at all: it reads on the page like something is checked.
+    probe = generator.get("version_arguments", ["-h"])
+    if not isinstance(probe, list) or not probe:
+        fail(f"corpus {name}: the generator has no version_arguments, so its version cannot be checked")
+
+    if not isinstance(generator.get("arguments", []), list):
+        fail(f"corpus {name}: the generator's arguments are not a list")
+
+    environment = generator.get("environment", {})
+    if not isinstance(environment, dict):
+        fail(f"corpus {name}: the generator's environment is not a table")
+        return
+    for key, value in sorted(environment.items()):
+        if not isinstance(value, str):
+            fail(f"corpus {name}: the generator's {key} is not a string")
 
 
 def check_no_machine_identity() -> None:

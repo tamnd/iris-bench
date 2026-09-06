@@ -25,6 +25,9 @@ pub struct Manifest {
     /// One entry per file, each pinned by digest.
     #[serde(default)]
     pub files: Vec<Entry>,
+    /// What produces the bytes, which a generated corpus has and no other kind may.
+    #[serde(default)]
+    pub generator: Option<Generator>,
     /// Facts about the loaded corpus that a run checks before it measures anything.
     #[serde(default)]
     pub assertions: Assertions,
@@ -92,6 +95,41 @@ pub struct Entry {
     /// having no answer for it would mean forking the corpus rather than describing it.
     #[serde(default)]
     pub url: Option<String>,
+}
+
+/// What produces a generated corpus, written down closely enough to run.
+///
+/// A generated corpus is pinned by digest like every other kind, and the digest of what a generator
+/// writes depends on which generator it was. So the version is part of the pin and is checked before
+/// anything runs, because the alternative is a digest mismatch on ten gigabytes of output with no
+/// indication that the cause is a build of `dbgen` two releases along.
+///
+/// The program itself is never in this repository. TPC's tools are obtained by the person running
+/// the generation, under TPC's own terms, and `docs/LICENSING.md` says why.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Generator {
+    /// What to run, found on `PATH` unless the caller supplies a path.
+    pub program: String,
+    /// What to pass it.
+    #[serde(default)]
+    pub arguments: Vec<String>,
+    /// The version this corpus was generated with, which must appear in the program's own banner.
+    pub version: String,
+    /// What to pass the program to make it print that banner.
+    #[serde(default = "Generator::default_version_arguments")]
+    pub version_arguments: Vec<String>,
+    /// Environment the program needs, where `{output}` is the directory the files should land in
+    /// and `{program_directory}` is the directory the program itself was found in.
+    #[serde(default)]
+    pub environment: std::collections::BTreeMap<String, String>,
+}
+
+impl Generator {
+    /// What to pass a program to make it say what it is, when the manifest does not say.
+    fn default_version_arguments() -> Vec<String> {
+        vec!["-h".to_owned()]
+    }
 }
 
 /// Facts a run checks about the loaded corpus before it measures anything.
@@ -237,6 +275,27 @@ impl Manifest {
             ));
         }
 
+        // A generated corpus says what produces it and every other kind says where it is downloaded
+        // from, and a manifest carrying both would be making two claims about one set of bytes. The
+        // second of those is the one that would go unread.
+        match (self.corpus.category, self.generator.as_ref()) {
+            (Category::Generate, None) => {
+                return Err(invalid(
+                    "generated without a [generator], so nothing says how".to_owned(),
+                ));
+            }
+            (category, Some(_)) if category != Category::Generate => {
+                return Err(invalid(format!(
+                    "has a [generator] and is a {category} corpus, which are two different \
+                     answers to where the bytes come from"
+                )));
+            }
+            _ => {}
+        }
+        if let Some(generator) = self.generator.as_ref() {
+            generator.validate(&invalid)?;
+        }
+
         if self.files.is_empty() {
             return Err(invalid(
                 "no files, so this manifest pins nothing".to_owned(),
@@ -259,6 +318,27 @@ impl Manifest {
     #[must_use]
     pub fn bytes(&self) -> u64 {
         self.files.iter().map(|entry| entry.bytes).sum()
+    }
+}
+
+impl Generator {
+    /// Checks a generator, reporting through the caller's error constructor.
+    fn validate(&self, invalid: &impl Fn(String) -> ManifestError) -> Result<(), ManifestError> {
+        for (field, value) in [("program", &self.program), ("version", &self.version)] {
+            if value.trim().is_empty() {
+                return Err(invalid(format!("the generator has no {field}")));
+            }
+        }
+        // Without something to run the version probe on, the version in the manifest is a comment.
+        // It is the field that turns a mismatch from a mystery into a sentence, so an empty probe
+        // is refused rather than skipped.
+        if self.version_arguments.is_empty() {
+            return Err(invalid(
+                "the generator has no version_arguments, so its version cannot be checked"
+                    .to_owned(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -352,6 +432,68 @@ mod tests {
         assert_eq!(
             Manifest::parse(&text).unwrap().corpus.category,
             Category::Mirror
+        );
+    }
+
+    /// A generate manifest, which needs a different source and a generator to go with it.
+    fn generated(extra: &str) -> String {
+        manifest("")
+            .replace("\"fetch\"", "\"generate\"")
+            .replace(
+                "https://example.invalid/example.parquet",
+                "example-gen 1.0.0 at scale factor 1",
+            )
+            .replace(
+                "[[files]]",
+                &format!(
+                    "[generator]\n\
+                     program = \"example-gen\"\n\
+                     arguments = [\"-s\", \"1\"]\n\
+                     version = \"1.0.0\"\n\
+                     {extra}\n\
+                     [[files]]"
+                ),
+            )
+    }
+
+    #[test]
+    fn a_generated_corpus_says_what_produces_it() {
+        let parsed = Manifest::parse(&generated("")).unwrap();
+        let generator = parsed.generator.unwrap();
+        assert_eq!(generator.program, "example-gen");
+        assert_eq!(generator.arguments, ["-s", "1"]);
+        // Not written in the manifest above, so this is the default arriving.
+        assert_eq!(generator.version_arguments, ["-h"]);
+    }
+
+    #[test]
+    fn a_generated_corpus_with_no_generator_is_refused() {
+        let text = manifest("").replace("\"fetch\"", "\"generate\"");
+        let error = Manifest::parse(&text).unwrap_err();
+        assert!(format!("{error}").contains("nothing says how"));
+    }
+
+    #[test]
+    fn a_fetched_corpus_with_a_generator_is_refused() {
+        let text = generated("").replace("\"generate\"", "\"fetch\"");
+        let error = Manifest::parse(&text).unwrap_err();
+        assert!(format!("{error}").contains("two different answers"));
+    }
+
+    #[test]
+    fn a_generator_that_cannot_be_asked_its_version_is_refused() {
+        let text = generated("version_arguments = []");
+        let error = Manifest::parse(&text).unwrap_err();
+        assert!(format!("{error}").contains("cannot be checked"));
+    }
+
+    #[test]
+    fn the_environment_a_generator_needs_is_read() {
+        let text = generated("[generator.environment]\nOUT = \"{output}\"");
+        let parsed = Manifest::parse(&text).unwrap();
+        assert_eq!(
+            parsed.generator.unwrap().environment.get("OUT").unwrap(),
+            "{output}"
         );
     }
 

@@ -33,6 +33,29 @@ blake3 = "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
 bytes = 1024
 """
 
+GENERATED = """
+[corpus]
+name = "example"
+description = "A corpus that exists to be validated"
+source = "example-gen 1.0.0, scale factor 1"
+licence = "Apache-2.0"
+category = "generate"
+
+[generator]
+program = "example-gen"
+arguments = ["-s", "1"]
+version = "1.0.0"
+version_arguments = ["-h"]
+
+[generator.environment]
+OUT = "{output}"
+
+[[files]]
+path = "example.tbl"
+blake3 = "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+bytes = 1024
+"""
+
 failures: list[str] = []
 
 
@@ -133,6 +156,44 @@ def main() -> int:
         GOOD.replace('"https://example.invalid/example.parquet"', '"tpch-dbgen -s 20"').replace(
             "bytes = 1024", 'bytes = 1024\nurl = "https://example.invalid/example.parquet"'
         ),
+    )
+    expect_clean("a generated corpus that says what produces it", GENERATED)
+    expect_complaint(
+        "a generated corpus with no generator",
+        GOOD.replace('"fetch"', '"generate"'),
+        "nothing says how",
+    )
+    expect_complaint(
+        "a fetched corpus that has a generator anyway",
+        GENERATED.replace('"generate"', '"fetch"'),
+        "two different answers",
+    )
+    expect_complaint(
+        "a generated corpus whose source is a download",
+        GENERATED.replace(
+            '"example-gen 1.0.0, scale factor 1"', '"https://example.invalid/example.tbl"'
+        ),
+        "produced here and that they are downloaded",
+    )
+    expect_complaint(
+        "a generator whose version cannot be probed",
+        GENERATED.replace('version_arguments = ["-h"]', "version_arguments = []"),
+        "cannot be checked",
+    )
+    expect_complaint(
+        "a generator with no version at all",
+        GENERATED.replace('version = "1.0.0"', ""),
+        "'version'",
+    )
+    expect_complaint(
+        "a generator field this format does not have",
+        GENERATED.replace("version =", 'versions = "nearly right"\nversion ='),
+        "'versions'",
+    )
+    expect_complaint(
+        "a generator environment that is not strings",
+        GENERATED.replace('OUT = "{output}"', "OUT = 3"),
+        "is not a string",
     )
     expect_complaint(
         "a manifest that is not TOML",

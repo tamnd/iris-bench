@@ -129,11 +129,13 @@ enum Command {
         #[arg(long)]
         anyway: bool,
     },
-    /// Fetch a corpus and verify it against its manifest.
+    /// Get a corpus onto this machine and verify it against its manifest.
     ///
-    /// The digest is checked in the same pass that writes the file, and the asserted row and column
-    /// counts are checked after. A corpus that is not what the manifest says never reaches a
-    /// measurement, which is the only reason any number here is worth comparing to a later one.
+    /// A fetched corpus is downloaded and a generated one is produced by a generator the manifest
+    /// names. Either way the digest is checked in the same pass that writes the file, and the
+    /// asserted row and column counts are checked after. A corpus that is not what the manifest
+    /// says never reaches a measurement, which is the only reason any number here is worth
+    /// comparing to a later one.
     Corpus {
         /// Corpus name, as it appears in the manifest directory.
         name: String,
@@ -146,6 +148,18 @@ enum Command {
         /// checkouts at one store is the supported way to have a corpus once rather than per clone.
         #[arg(long, value_name = "PATH")]
         store: Option<PathBuf>,
+        /// Where the generator is, for a generated corpus whose program is not on `PATH`.
+        ///
+        /// The usual case, since TPC's `dbgen` is built in a directory of its own and is not
+        /// something anybody installs.
+        #[arg(long, value_name = "PATH")]
+        generator: Option<PathBuf>,
+        /// Where a generator is allowed to write, when that is not `corpus-scratch/`.
+        ///
+        /// Needs room for the whole corpus. A generator writes what it writes and only then can any
+        /// of it be checked, so this is a second copy for as long as the generation takes.
+        #[arg(long, value_name = "PATH")]
+        scratch: Option<PathBuf>,
     },
     /// Run a workload and append the results to the store.
     Run {
@@ -268,7 +282,13 @@ fn main() -> anyhow::Result<()> {
             f64::from(floor) * 1_000.0,
             anyway,
         ),
-        Command::Corpus { name, root, store } => corpus::run(&name, root, store),
+        Command::Corpus {
+            name,
+            root,
+            store,
+            generator,
+            scratch,
+        } => corpus::run(&name, root, store, generator.as_deref(), scratch),
         other => anyhow::bail!("not implemented yet: {other:?}"),
     }
 }
