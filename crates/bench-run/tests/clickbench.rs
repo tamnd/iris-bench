@@ -17,13 +17,26 @@
 //! with a handful, which is fine. This is a test that the machinery runs and agrees, not a test of
 //! what the answers are, and the day the real corpus produces a disagreement it will be the same
 //! comparison code that says so.
+//!
+//! The types are `ClickBench`'s, though, and that is a correction rather than a detail. The create
+//! statement above is what the table looks like after `DuckDB` has loaded it, with `EventDate` as a
+//! date and three columns as timestamps. The published Parquet file this workload is really run on
+//! stores none of those four that way: `EventDate` is an unsigned sixteen bit count of days, and
+//! `EventTime`, `ClientEventTime` and `LocalEventTime` are plain Unix seconds in a signed sixty
+//! four bit integer with no logical type on them. Every published entry converts them on the way
+//! in, which is why the create statement disagrees with the file it is loaded from.
+//!
+//! An earlier version of this fixture wrote the converted types, so all forty three queries passed
+//! here while seven of them failed on the real corpus, and the ones that did not fail were quietly
+//! answering a different question. So the fixture now stores the four columns the way the corpus
+//! stores them and each system is given the projection its own published setup applies. That makes
+//! this a miniature of the corpus rather than a miniature of what the corpus becomes.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use arrow_array::{
-    ArrayRef, Date32Array, Int16Array, Int32Array, Int64Array, RecordBatch, StringArray,
-    TimestampMicrosecondArray,
+    ArrayRef, Int16Array, Int32Array, Int64Array, RecordBatch, StringArray, UInt16Array,
 };
 use arrow_schema::{DataType, Field, Schema, TimeUnit};
 use bench_driver::{Driver, Format, Load, Session, Setup};
@@ -59,11 +72,25 @@ const COLUMNS: usize = 105;
 
 /// The day the fixture's rows happened, as days since the epoch. `ClickBench` queries filter on a
 /// window in July 2013 and a fixture outside it would answer every one of them with nothing.
-const EVENT_DATE: i32 = 15_901;
+///
+/// Unsigned sixteen bit, because that is what the corpus stores and what every published setup
+/// converts on the way in.
+const EVENT_DATE: u16 = 15_901;
 
-/// Noon on the same day, in microseconds since the epoch. Each row gets its own second, so that a
-/// query ordering by `EventTime` has one answer rather than a set of them.
-const EVENT_TIME: i64 = 1_373_889_600_000_000;
+/// Noon on the same day, in seconds since the epoch. Each row gets its own second, so that a query
+/// ordering by `EventTime` has one answer rather than a set of them.
+const EVENT_TIME: i64 = 1_373_889_600;
+
+/// The four columns the corpus stores as something other than what the create statement declares.
+///
+/// `EventDate` first, then the three that hold raw seconds, which is the order the arms below read
+/// them in.
+const CONVERTED: [&str; 4] = [
+    "EventDate",
+    "EventTime",
+    "ClientEventTime",
+    "LocalEventTime",
+];
 
 #[test]
 fn all_forty_three_run_on_every_system_and_the_engines_agree() {
@@ -190,6 +217,55 @@ fn a_query_the_engines_answer_differently_would_be_caught() {
 }
 
 #[test]
+fn without_the_published_setup_the_seven_date_queries_fail() {
+    // The test above passing is only worth something if this fixture is capable of failing the way
+    // the real corpus did. Seven of the published DataFusion queries compare EventDate to a date
+    // literal, and against the types the corpus actually stores that is a number against a string.
+    // Those seven, q36 to q42, are exactly the seven that failed on the 14 GB corpus before the
+    // setup was carried. If this test ever stops finding them the fixture has drifted back to
+    // storing the converted types and the one above has stopped proving anything.
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let file = write_hits(scratch.path());
+    let directory = scratch.path().join("raw");
+    std::fs::create_dir_all(&directory).expect("a directory");
+
+    let mut driver = driver_datafusion::DataFusion::new();
+    let mut session = Session::new(&mut driver);
+    session
+        .prepare(&Setup {
+            directory,
+            threads: 2,
+            memory: 1 << 30,
+        })
+        .expect("the system starts");
+    session
+        .load(&Load {
+            table: clickbench::TABLE.to_owned(),
+            files: vec![file],
+            format: Format::Parquet,
+            projection: None,
+        })
+        .expect("the system takes the table");
+
+    let report = bench_workload::measure(
+        &mut session,
+        &clickbench::workload(clickbench::Dialect::DataFusion),
+        &mut Warm,
+    );
+    let failed: Vec<&str> = report
+        .queries
+        .iter()
+        .filter(|query| matches!(query.outcome, Outcome::Failed { .. }))
+        .map(|query| query.id.as_str())
+        .collect();
+    assert_eq!(
+        failed,
+        ["q36", "q37", "q38", "q39", "q40", "q41", "q42"],
+        "the fixture no longer stores EventDate the way the corpus does"
+    );
+}
+
+#[test]
 fn a_recorded_seed_replays_the_order_the_queries_ran_in() {
     let scratch = tempfile::tempdir().expect("a scratch directory");
     let file = write_hits(scratch.path());
@@ -275,9 +351,10 @@ fn with_session<T>(
     file: &Path,
     take: impl FnOnce(&mut Session<'_>, &Workload) -> T,
 ) -> T {
-    let dialect = clickbench::dialect(driver.name()).expect("every driver here has a set");
+    let name = driver.name();
+    let dialect = clickbench::dialect(name).expect("every driver here has a set");
     let workload = clickbench::workload(dialect);
-    let directory = scratch.join(driver.name());
+    let directory = scratch.join(name);
     std::fs::create_dir_all(&directory).expect("a directory per system");
 
     let mut session = Session::new(driver);
@@ -293,7 +370,10 @@ fn with_session<T>(
             table: clickbench::TABLE.to_owned(),
             files: vec![file.to_owned()],
             format: Format::Parquet,
-            projection: None,
+            // The system's own published setup, which is the point of the fixture storing the raw
+            // types. The two engines convert different columns at different times and the reference
+            // reader gets none, and all three of those are decided in one place in bench-workload.
+            projection: clickbench::projection(name).map(str::to_owned),
         })
         .expect("the system takes the table");
 
@@ -327,10 +407,23 @@ fn schema() -> Schema {
             let (name, rest) = line.split_once(' ').expect("a name and a type");
             let optional = !rest.ends_with("NOT NULL");
             let kind = rest.trim_end_matches("NOT NULL").trim();
-            Field::new(name, arrow(kind), optional)
+            Field::new(name, stored(name, kind), optional)
         })
         .collect::<Vec<_>>();
     Schema::new(fields)
+}
+
+/// What the corpus stores a column as, which is not always what the create statement declares.
+///
+/// The create statement is the table after a load. Four of its columns are converted on the way in
+/// by whichever setup the system publishes, and a fixture that skipped the conversion would be
+/// testing the queries against a file nobody has.
+fn stored(name: &str, kind: &str) -> DataType {
+    match name {
+        "EventDate" => DataType::UInt16,
+        "EventTime" | "ClientEventTime" | "LocalEventTime" => DataType::Int64,
+        _ => arrow(kind),
+    }
 }
 
 /// What one of the create statement's types is in Arrow.
@@ -394,6 +487,18 @@ fn column(field: &Field) -> ArrayRef {
                 .map(|(group, _)| i32::try_from(*group).unwrap())
                 .collect::<Int32Array>(),
         ),
+        // The count of days the corpus stores, rather than a date. Every published setup turns this
+        // one into a date before a query sees it.
+        DataType::UInt16 => Arc::new(UInt16Array::from(vec![EVENT_DATE; ROWS])),
+        // Raw Unix seconds, which is what the corpus holds and what DuckDB's setup converts and
+        // DataFusion's leaves for its queries to convert. A second per row, so that a query
+        // ordering by EventTime has one answer, and all of them inside one minute, so that the
+        // query grouping by the minute still sees one group.
+        DataType::Int64 if CONVERTED.contains(&field.name().as_str()) => {
+            Arc::new(Int64Array::from_iter_values(
+                (0..ROWS).map(|row| EVENT_TIME + i64::try_from(row).unwrap()),
+            ))
+        }
         // UserID is the one integer that varies inside a group, because four of the queries count
         // the distinct ones per group and a column that was constant per group would give every
         // group the answer one.
@@ -409,14 +514,6 @@ fn column(field: &Field) -> ArrayRef {
                 .map(|(group, _)| i64::try_from(*group).unwrap())
                 .collect::<Int64Array>(),
         ),
-        DataType::Date32 => Arc::new(Date32Array::from(vec![EVENT_DATE; ROWS])),
-        // A second per row, so that a query ordering by EventTime has one answer, and all of them
-        // inside one minute, so that the query grouping by the minute still sees one group.
-        DataType::Timestamp(TimeUnit::Microsecond, None) => {
-            Arc::new(TimestampMicrosecondArray::from_iter_values(
-                (0..ROWS).map(|row| EVENT_TIME + i64::try_from(row).unwrap() * 1_000_000),
-            ))
-        }
         DataType::Utf8 => Arc::new(StringArray::from_iter_values(
             shape.iter().map(|(group, _)| text(field.name(), *group)),
         )),
