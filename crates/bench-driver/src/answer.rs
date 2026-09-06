@@ -33,6 +33,12 @@ use std::fmt::Write as _;
 ///
 /// See the module documentation. This is the number that decides whether two engines that computed
 /// the same sum in a different order agree.
+///
+/// Six is a conservative starting point rather than a measured one. The milestone issue that
+/// compares digests across all three systems is where it gets calibrated against what three engines
+/// actually return on real queries, which is a better basis than an estimate of how much a parallel
+/// summation drifts. Until then it errs towards agreeing, and the cost of that is in the module
+/// documentation.
 const FLOAT_DIGITS: usize = 6;
 
 /// What separates two values on a row.
@@ -56,6 +62,18 @@ pub enum Value {
     Float(f64),
     /// Text, rendered with backslash, tab and newline escaped.
     Text(String),
+    /// A calendar date, as days since 1970-01-01, rendered `YYYY-MM-DD`.
+    Date(i32),
+    /// A time of day, as microseconds since midnight, rendered `HH:MM:SS` with a fraction only when
+    /// there is one.
+    Time(i64),
+    /// An instant, as microseconds since 1970-01-01 00:00:00, rendered `YYYY-MM-DD HH:MM:SS` with a
+    /// fraction only when there is one.
+    ///
+    /// No time zone, because none of these workloads has one. A system that returns a zoned value
+    /// has to say what it converted to, and that belongs in its `CONFIG.md` as a deviation rather
+    /// than in a canonical form that pretends the question did not arise.
+    Timestamp(i64),
 }
 
 impl Value {
@@ -79,8 +97,72 @@ impl Value {
                     }
                 }
             }
+            Self::Date(value) => into.push_str(&date(i64::from(*value))),
+            Self::Time(value) => into.push_str(&clock(*value)),
+            Self::Timestamp(value) => {
+                let days = value.div_euclid(MICROSECONDS_PER_DAY);
+                let rest = value.rem_euclid(MICROSECONDS_PER_DAY);
+                let _ = write!(into, "{} {}", date(days), clock(rest));
+            }
         }
     }
+}
+
+/// Microseconds in a day, which is the unit both the time and the timestamp forms are counted in.
+const MICROSECONDS_PER_DAY: i64 = 24 * 60 * 60 * 1_000_000;
+
+/// A day number as `YYYY-MM-DD`.
+fn date(days: i64) -> String {
+    let (year, month, day) = civil(days);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
+/// Microseconds since midnight as `HH:MM:SS`, with a fraction only when there is one.
+///
+/// The fraction is trimmed rather than padded, so a system that stores milliseconds and one that
+/// stores microseconds render the same instant the same way. Padding would make them disagree about
+/// a difference that is in their storage rather than in their answer.
+fn clock(microseconds: i64) -> String {
+    let microseconds = microseconds.rem_euclid(MICROSECONDS_PER_DAY);
+    let seconds = microseconds / 1_000_000;
+    let fraction = microseconds % 1_000_000;
+    let mut text = format!(
+        "{:02}:{:02}:{:02}",
+        seconds / 3_600,
+        (seconds / 60) % 60,
+        seconds % 60
+    );
+    if fraction != 0 {
+        let digits = format!("{fraction:06}");
+        let _ = write!(text, ".{}", digits.trim_end_matches('0'));
+    }
+    text
+}
+
+/// The calendar date a day number falls on.
+///
+/// Howard Hinnant's `civil_from_days`, which is the standard shift of the year to start in March so
+/// that the leap day lands at the end of it and the month lengths become a single linear formula.
+/// Written out rather than pulled in from a date library, because this crate is what every other
+/// crate here depends on and a canonical rendering is not worth a dependency tree.
+fn civil(days: i64) -> (i64, i64, i64) {
+    // 719468 is the number of days from 0000-03-01 to 1970-01-01, which moves the epoch to the
+    // start of the shifted year.
+    let shifted = days + 719_468;
+    let era = shifted.div_euclid(146_097);
+    let day_of_era = shifted.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let shifted_month = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * shifted_month + 2) / 5 + 1;
+    let month = if shifted_month < 10 {
+        shifted_month + 3
+    } else {
+        shifted_month - 9
+    };
+    (if month <= 2 { year + 1 } else { year }, month, day)
 }
 
 /// A float in the canonical form.
@@ -338,6 +420,49 @@ mod tests {
         // Without the backslash escape these two would digest the same, and a driver returning the
         // literal text would be indistinguishable from one returning nothing.
         assert_ne!(one(Value::Text("\\N".to_owned())), one(Value::Null));
+    }
+
+    #[test]
+    fn a_date_is_rendered_as_a_calendar_date() {
+        assert_eq!(one(Value::Date(0)), "1970-01-01\n");
+        assert_eq!(one(Value::Date(19_723)), "2024-01-01\n");
+        // The leap day, which is the whole reason the calendar arithmetic is not a division.
+        assert_eq!(one(Value::Date(19_782)), "2024-02-29\n");
+        // 1900 is not a leap year and 2000 is, which is the century rule and the exception to it.
+        assert_eq!(one(Value::Date(-25_567)), "1900-01-01\n");
+        assert_eq!(one(Value::Date(11_016)), "2000-02-29\n");
+    }
+
+    #[test]
+    fn a_date_before_the_epoch_counts_backwards_rather_than_wrapping() {
+        assert_eq!(one(Value::Date(-1)), "1969-12-31\n");
+        assert_eq!(one(Value::Date(-365)), "1969-01-01\n");
+    }
+
+    #[test]
+    fn a_time_shows_a_fraction_only_when_there_is_one() {
+        assert_eq!(one(Value::Time(0)), "00:00:00\n");
+        assert_eq!(one(Value::Time(3_661_000_000)), "01:01:01\n");
+        assert_eq!(one(Value::Time(1_500_000)), "00:00:01.5\n");
+        assert_eq!(one(Value::Time(1_000_001)), "00:00:01.000001\n");
+    }
+
+    #[test]
+    fn a_system_that_stores_milliseconds_agrees_with_one_that_stores_microseconds() {
+        // The same instant, arrived at from two different storage precisions. Padding the fraction
+        // to a fixed width would make these disagree about something that is not in the answer.
+        assert_eq!(one(Value::Time(1_500_000)), one(Value::Time(1_500_000)));
+        assert_eq!(one(Value::Time(2_000_000)), "00:00:02\n");
+    }
+
+    #[test]
+    fn a_timestamp_is_a_date_and_a_time() {
+        assert_eq!(one(Value::Timestamp(0)), "1970-01-01 00:00:00\n");
+        assert_eq!(
+            one(Value::Timestamp(1_704_067_199_000_000)),
+            "2023-12-31 23:59:59\n"
+        );
+        assert_eq!(one(Value::Timestamp(-1)), "1969-12-31 23:59:59.999999\n");
     }
 
     #[test]
