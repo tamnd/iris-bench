@@ -98,6 +98,14 @@ cargo run --release -p iris-bench-cli -- clickbench check duckdb.json datafusion
 
 Agreement is per query, across every system that answered it. A query only one system answered is reported separately rather than counted as confirmed, and a system that gave two different answers across its own three runs is named even when the systems agreed with each other.
 
+A digest tells you two systems differ and tells you nothing about what they differ on, so there is a fourth command for the moment after a comparison fails. It takes the table in the same way a run does, runs only the queries you name, and prints the rows both digests were taken over.
+
+```
+cargo run --release -p iris-bench-cli -- clickbench answer --driver duckdb --file /var/tmp/iris-corpus/hits.parquet --query q23
+```
+
+It takes no timings, so it needs no gate and it is fine on a busy machine, and nothing it prints can end up in a table of numbers.
+
 The other check on the same records is against the public leaderboard, which is what says the harness itself is not wrong.
 
 ```

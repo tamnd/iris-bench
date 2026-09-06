@@ -2,7 +2,7 @@
 
 `iris-bench`, the command line tool.
 
-Everything this repository can do from a terminal is here and nowhere else, so the tool is the only way anybody runs anything and there is no second path with different defaults on it. `check` says what the machine is and which eligibility gates it passes. `noise`, `overhead` and `resident` are the measurements about the harness itself. `corpus` fetches or generates a pinned corpus into the store. `clickbench` runs the workload against one system, compares the records afterwards, and calibrates them against the public leaderboard.
+Everything this repository can do from a terminal is here and nowhere else, so the tool is the only way anybody runs anything and there is no second path with different defaults on it. `check` says what the machine is and which eligibility gates it passes. `noise`, `overhead` and `resident` are the measurements about the harness itself. `corpus` fetches or generates a pinned corpus into the store. `clickbench` runs the workload against one system, compares the records afterwards, calibrates them against the public leaderboard, and prints the rows behind a query when the comparison says two systems disagreed about it.
 
 `run`, `reproduce` and `report` are named and do nothing yet. They are the milestones after this one, and they are in the command list rather than absent from it so that the shape of the finished tool is visible from the help text.
 

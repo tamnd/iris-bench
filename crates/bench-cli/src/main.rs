@@ -182,12 +182,14 @@ enum Command {
     Report,
 }
 
-/// The three parts of `clickbench`.
+/// The four parts of `clickbench`.
 ///
 /// Running and comparing are separate because the systems are measured one at a time, often on
 /// different days, and a comparison that could only happen inside a run would be a comparison that
 /// never happened. Calibrating is separate from both because it reads every record of a run
 /// together, and a single record cannot tell a misconfiguration apart from a slower machine.
+/// Answering is separate from all three because it is what somebody reaches for after a comparison
+/// failed, and it takes no timings at all.
 #[derive(Debug, Subcommand)]
 enum ClickbenchCommand {
     /// Measure one system.
@@ -229,6 +231,30 @@ enum ClickbenchCommand {
         /// put next to a leaderboard.
         #[arg(long)]
         anyway: bool,
+    },
+    /// Print what one system actually returns for named queries, rather than what it hashes to.
+    Answer {
+        /// Which system: `duckdb`, `datafusion` or `arrow-parquet`.
+        #[arg(long)]
+        driver: String,
+        /// The Parquet file holding the hits table, already fetched and already verified.
+        #[arg(long, value_name = "PATH")]
+        file: PathBuf,
+        /// Which queries, by the id the record calls them, such as `q23`. Repeat for more.
+        #[arg(long, required = true, value_name = "ID")]
+        query: Vec<String>,
+        /// How many rows of each answer to print before saying how many were left.
+        #[arg(long, default_value_t = 40)]
+        rows: usize,
+        /// How many threads the system is allowed. Defaults to the whole machine.
+        #[arg(long)]
+        threads: Option<usize>,
+        /// How many gibibytes the system is allowed.
+        #[arg(long, default_value_t = 16)]
+        memory: u64,
+        /// Where the system may write, when that is not `run-scratch/`.
+        #[arg(long, value_name = "PATH")]
+        scratch: Option<PathBuf>,
     },
     /// Read records back and say whether the systems agreed about the answers.
     Check {
@@ -317,6 +343,65 @@ fn check(require: Requirement, out: Option<PathBuf>) -> anyhow::Result<()> {
     Ok(capture.require(require.into())?)
 }
 
+/// Hands one of the four `clickbench` subcommands its arguments.
+///
+/// Its own function rather than an arm of the match in `main`, because the run alone has eleven
+/// arguments and burying four commands' worth of that inside another match makes the one place a
+/// reader goes to find out what a flag does the hardest place in the crate to read.
+fn clickbench(what: ClickbenchCommand) -> anyhow::Result<()> {
+    // Absent means the whole machine, which is what the leaderboard entries are taken with, and it
+    // is resolved here rather than in the module so that the record has a number in it either way.
+    let whole = || std::thread::available_parallelism().map_or(1, Into::into);
+    match what {
+        ClickbenchCommand::Run {
+            driver,
+            file,
+            out,
+            seed,
+            pass,
+            in_order,
+            threads,
+            memory,
+            scratch,
+            cold,
+            anyway,
+        } => clickbench::run(
+            &driver,
+            &file,
+            out,
+            seed,
+            pass,
+            in_order,
+            threads.unwrap_or_else(whole),
+            memory * (1 << 30),
+            scratch,
+            cold,
+            anyway,
+        ),
+        ClickbenchCommand::Answer {
+            driver,
+            file,
+            query,
+            rows,
+            threads,
+            memory,
+            scratch,
+        } => clickbench::answer(
+            &driver,
+            &file,
+            &query,
+            rows,
+            threads.unwrap_or_else(whole),
+            memory * (1 << 30),
+            scratch,
+        ),
+        ClickbenchCommand::Check { records } => clickbench::check(&records),
+        ClickbenchCommand::Calibrate { records, column } => {
+            clickbench::calibrate(&records, column.into())
+        }
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -376,38 +461,7 @@ fn main() -> anyhow::Result<()> {
             f64::from(floor) * 1_000.0,
             anyway,
         ),
-        Command::Clickbench { what } => match what {
-            ClickbenchCommand::Run {
-                driver,
-                file,
-                out,
-                seed,
-                pass,
-                in_order,
-                threads,
-                memory,
-                scratch,
-                cold,
-                anyway,
-            } => clickbench::run(
-                &driver,
-                &file,
-                out,
-                seed,
-                pass,
-                in_order,
-                threads
-                    .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, Into::into)),
-                memory * (1 << 30),
-                scratch,
-                cold,
-                anyway,
-            ),
-            ClickbenchCommand::Check { records } => clickbench::check(&records),
-            ClickbenchCommand::Calibrate { records, column } => {
-                clickbench::calibrate(&records, column.into())
-            }
-        },
+        Command::Clickbench { what } => clickbench(what),
         Command::Corpus {
             name,
             root,
