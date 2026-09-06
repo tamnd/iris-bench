@@ -39,6 +39,19 @@ allow = [
 name = "webpki-roots"
 allow = ["CDLA-Permissive-2.0"]
 
+# libbz2-rs-sys arrives under DataFusion, through async-compression and the bzip2
+# crate, and carries the bzip2 licence rather than a common one. It is a permissive
+# BSD style licence with no copyleft in it and it is compatible with Apache-2.0, so
+# the only reason it is not in the general allow list is that nothing else here uses
+# it and a second crate showing up under it should be looked at by a person. Nothing
+# in this repository turns that codec on. It is in the graph because DataFusion is
+# taken with its default features, which is what DataFusion's own benchmark entries
+# build with, and reducing the features to dodge a licence check would change the
+# system under test.
+[[licenses.exceptions]]
+name = "libbz2-rs-sys"
+allow = ["bzip2-1.0.6"]
+
 # The harness itself must not link anything under a strong copyleft licence.
 # Systems under test are a different matter: they run in their own processes,
 # and a GPL licensed database is perfectly fine to benchmark.
