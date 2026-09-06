@@ -1810,6 +1810,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "driver-arrow-parquet"
+version = "0.2.1"
+dependencies = [
+ "arrow-array 59.3.0",
+ "arrow-schema 59.3.0",
+ "bench-driver",
+ "parquet",
+ "tempfile",
+]
+
+[[package]]
 name = "driver-datafusion"
 version = "0.2.1"
 dependencies = [
