@@ -18,11 +18,19 @@ The disk manager is pointed at a subdirectory of the run's scratch directory, so
 
 Tables are registered as listing tables over the exact files the corpus manifest names, one url per file, rather than over a directory. A directory would be read as whatever happens to be on the disk at the time, and the manifest is the thing that says what a corpus is.
 
+Where the workload supplies a select list, the listing table is registered under the table's name with `_raw` on the end and the workload's name becomes a view over it. That is the shape of DataFusion's published ClickBench setup, which registers `hits_raw` and creates `hits` as `SELECT * EXCEPT ("EventDate"), CAST(CAST("EventDate" AS INTEGER) AS DATE) AS "EventDate" FROM hits_raw`. The corpus stores `EventDate` as an unsigned sixteen bit count of days, so without the cast the queries that filter on a date compare a number against a string. `bench-workload` carries the setup script with its digest and hands the same select list to every driver that gets one.
+
+That entry converts `EventDate` and nothing else. `EventTime`, `ClientEventTime` and `LocalEventTime` stay as the raw Unix seconds the file holds, which is why DataFusion's published query file writes `to_timestamp_seconds("EventTime")` by hand where the ClickHouse reference does not, and why DuckDB's published setup converts four columns here and DataFusion's converts one. Making those two agree would be this repository configuring the benchmark rather than running it.
+
 ## Deviations
 
 Data is not ingested. DataFusion is a query engine over files rather than a database with its own storage, so the load phase registers the files and infers a schema, and every scan is paid for in the run phase. This is DataFusion's published configuration and it is the honest one, but it means the load number here is not comparable with the load number from a driver that ingested, and the run numbers carry work that the other driver did once. The phases are reported separately for exactly this reason, and a reader comparing only the run column across the two is comparing different things.
 
 There is no in memory alternative worth having. ClickBench `hits` is 14 GB and TPC-H at scale factor 20 is 22.5 GB, neither of which fits in the memory budget of any machine in this fleet, so a driver that materialised into memory would simply fail on the corpora this repository was built to measure.
+
+`binary_as_string` is not set on the Parquet format options, and DataFusion's published setup passes it. On the ClickBench corpus this repository pins, the option changes nothing: every byte array column in that file already carries the `String` logical type and the `UTF8` converted type, which was checked by reading the file's footer rather than assumed. It is worth revisiting if a corpus ever arrives whose string columns lack those annotations, because then it would be the difference between reading a column as text and reading it as bytes.
+
+The view is created with a paid conversion on every scan rather than materialised into a table. Materialising would move that work into the load phase, and the whole reason DataFusion's load number is small and its run numbers carry the scan is that this is what its published entry does. Turning it into the DuckDB shape would hide the difference the phases exist to show.
 
 Text corpora are read with DataFusion's schema inference and no header row, so the column names and types come from DataFusion rather than from the workload. That is the same gap the DuckDB driver has, two systems could disagree about a result because they inferred a column differently rather than because they computed differently, and it closes when the workloads land with their own schemas.
 

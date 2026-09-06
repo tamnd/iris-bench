@@ -86,6 +86,8 @@ Running ClickBench is one command per system. The 43 queries are the published f
 cargo run --release -p iris-bench-cli -- clickbench run --driver duckdb --file /var/tmp/iris-corpus/hits.parquet --out duckdb.json
 ```
 
+Each system also gets the setup its own entry publishes, not just the queries. The corpus stores `EventDate` as a count of days and three of its timestamps as plain Unix seconds, so every published entry converts those columns on the way in, and the two entries here do not convert the same ones or pay for it at the same point. DuckDB materialises four of them into a table while it loads, and DataFusion converts one in a view over the files and leaves the rest to its queries. Both scripts are carried with their address and their digest for the same reason the queries are, and neither is corrected to look like the other.
+
 The order the queries are visited in is randomised and the seed is written into the record, so handing that seed back replays the same schedule. Dropping the page cache before each query is `--cold` and it needs root, and a run that could not drop it records why rather than calling itself cold anyway. The tool refuses to measure on a machine that failed the eligibility gates unless `--anyway` is passed, since a number taken on an unfit machine is a number somebody will put in a table.
 
 Then the records are compared, which is the part that catches a system being fast because it answered a different question.

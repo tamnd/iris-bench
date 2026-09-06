@@ -40,6 +40,16 @@ pub(crate) struct Record {
     pub(crate) environment: String,
     /// Where the corpus was and how large it was.
     pub(crate) corpus: Corpus,
+    /// The setup script this system's own entry publishes, where there is one and this driver was
+    /// given it.
+    ///
+    /// Recorded next to the query source and for the same reason. Two runs of the same queries can
+    /// still have taken the table in differently, and a record that named only the queries would
+    /// leave a reader unable to tell which of the two conversions produced the numbers under it.
+    /// `None` means the files were read as they lie, which is the honest answer for a driver that
+    /// builds no table.
+    #[serde(default)]
+    pub(crate) setup: Option<bench_workload::Source>,
     /// How long the system took to start, in nanoseconds.
     pub(crate) prepare_nanoseconds: f64,
     /// How long the system took to take the table, in nanoseconds.
@@ -110,6 +120,14 @@ pub(crate) fn run(
         if in_order { ", in file order" } else { "" }
     );
 
+    // The setup this system's own entry publishes, where it has one. The two entries in scope
+    // convert different columns and pay for it at different times, so which one was applied is part
+    // of what the record has to say rather than something a reader works out from the driver name.
+    let projection = clickbench::projection(driver);
+    let setup = projection
+        .and(dialect.setup_source())
+        .inspect(|source| println!("setup from {}", source.url));
+
     let mut system = system(driver)?;
     let mut session = Session::new(system.as_mut());
     let prepare_nanoseconds = session.prepare(&Setup {
@@ -121,6 +139,7 @@ pub(crate) fn run(
         table: clickbench::TABLE.to_owned(),
         files: vec![file.to_owned()],
         format: Format::Parquet,
+        projection: projection.map(str::to_owned),
     })?;
     println!(
         "prepared in {:.1}s, loaded in {:.1}s",
@@ -154,6 +173,7 @@ pub(crate) fn run(
             path: file.display().to_string(),
             bytes,
         },
+        setup,
         prepare_nanoseconds,
         load_nanoseconds,
         scheduled,

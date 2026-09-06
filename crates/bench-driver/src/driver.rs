@@ -91,6 +91,25 @@ pub struct Load {
     pub files: Vec<PathBuf>,
     /// What is in those files.
     pub format: Format,
+    /// What to select from the files, or `None` for every column as the files store it.
+    ///
+    /// A corpus does not always store a column as the type its queries ask about. `ClickBench`
+    /// keeps `EventDate` as an unsigned sixteen bit count of days and three of its timestamps as
+    /// plain Unix seconds, and every published entry converts those on the way in. That conversion
+    /// is part of the benchmark's setup rather than something a driver should invent, so the
+    /// workload supplies it and the driver applies it.
+    ///
+    /// It is a select list rather than a list of column names, because that is what the published
+    /// setups are: `* REPLACE (make_date(EventDate) AS EventDate, ...)` for `DuckDB` and
+    /// `* EXCEPT ("EventDate"), CAST(...) AS "EventDate"` for `DataFusion`. The two differ, and
+    /// giving both systems one of them would be this repository configuring a benchmark rather
+    /// than running the one its authors published.
+    ///
+    /// Where the cost of applying it lands is the driver's business and stays the driver's
+    /// business. `DuckDB` publishes a load that materialises the conversion, `DataFusion` publishes
+    /// one that expresses it as a view and pays it per query, and turning either into the other
+    /// would hide the difference the three phases exist to show.
+    pub projection: Option<String>,
 }
 
 /// What a corpus file is.

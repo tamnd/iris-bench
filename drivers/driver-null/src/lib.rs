@@ -89,6 +89,7 @@ mod tests {
                 table: "hits".to_owned(),
                 files: vec![PathBuf::from("hits.parquet")],
                 format: Format::Parquet,
+                projection: None,
             })
             .unwrap();
         let (answer, _) = session
@@ -122,6 +123,7 @@ mod tests {
                     table: "lineitem".to_owned(),
                     files: Vec::new(),
                     format: Format::Separated { separator: '|' },
+                    projection: None,
                 })
                 .unwrap();
         }

@@ -293,6 +293,7 @@ fn with_session<T>(
             table: clickbench::TABLE.to_owned(),
             files: vec![file.to_owned()],
             format: Format::Parquet,
+            projection: None,
         })
         .expect("the system takes the table");
 
