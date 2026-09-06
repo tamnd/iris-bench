@@ -188,6 +188,85 @@ pub(crate) fn run(
     Ok(())
 }
 
+/// Runs named queries once each and prints what came back.
+///
+/// This is the command for after `check` failed. A digest says two systems differ and says nothing
+/// at all about what they differ on, and a benchmark that hashes an answer and throws it away
+/// leaves the reader guessing at exactly the moment guessing is most expensive. So this takes the
+/// same table in the same way a run does, runs the queries the comparison complained about, and
+/// prints the canonical rendering both digests were taken over.
+///
+/// It takes no timings, so it asks for no permit and it is fine on a busy machine. Nothing it
+/// prints can end up in a table of numbers.
+pub(crate) fn answer(
+    driver: &str,
+    file: &Path,
+    wanted: &[String],
+    rows: usize,
+    threads: usize,
+    memory: u64,
+    scratch: Option<PathBuf>,
+) -> anyhow::Result<()> {
+    let dialect = clickbench::dialect(driver)
+        .with_context(|| format!("no published ClickBench query set is chosen for {driver}"))?;
+    let workload = clickbench::workload(dialect);
+    for id in wanted {
+        anyhow::ensure!(
+            workload.queries.iter().any(|query| &query.id == id),
+            "{driver} has no query called {id}"
+        );
+    }
+
+    let directory = scratch.unwrap_or_else(|| PathBuf::from("run-scratch").join(driver));
+    std::fs::create_dir_all(&directory)
+        .with_context(|| format!("making {}", directory.display()))?;
+
+    let projection = clickbench::projection(driver);
+    let mut system = system(driver)?;
+    let mut session = Session::new(system.as_mut());
+    session.prepare(&Setup {
+        directory,
+        threads,
+        memory,
+    })?;
+    session.load(&Load {
+        table: clickbench::TABLE.to_owned(),
+        files: vec![file.to_owned()],
+        format: Format::Parquet,
+        projection: projection.map(str::to_owned),
+    })?;
+
+    // In the order they were asked for rather than in workload order, because the caller is holding
+    // two of these side by side and wants the same query in the same place in both.
+    for id in wanted {
+        let query = workload
+            .queries
+            .iter()
+            .find(|query| &query.id == id)
+            .expect("the ids were checked above");
+        println!("\n{id} {}", query.sql);
+        match session.query(query) {
+            Ok((answer, _)) => {
+                println!(
+                    "{} rows, {} columns, digest {}",
+                    answer.rows,
+                    answer.columns,
+                    bench_workload::Digest::of(&answer)
+                );
+                let lines: Vec<&str> = answer.body.lines().collect();
+                for line in lines.iter().take(rows) {
+                    println!("  {line}");
+                }
+                if let Some(hidden) = lines.len().checked_sub(rows).filter(|left| *left > 0) {
+                    println!("  and {hidden} more rows, raise --rows to see them");
+                }
+            }
+            Err(error) => println!("did not answer: {error}"),
+        }
+    }
+    Ok(())
+}
+
 /// Reads several records back and says whether the systems agreed.
 ///
 /// Separate from the run because the systems are run one at a time, often on different days, and a
@@ -444,5 +523,24 @@ mod tests {
     fn a_name_with_no_driver_is_refused_rather_than_defaulted() {
         assert!(system("duckdb").is_ok());
         assert!(system("clickhouse").is_err());
+    }
+
+    #[test]
+    fn answer_checks_the_query_ids_before_it_touches_the_corpus() {
+        // Fourteen gigabytes take a while to open and the mistake here is a typed query id, so the
+        // ids are checked against the workload first. The file below does not exist, and the error
+        // that comes back is about the id rather than about the file, which is what says the order
+        // is the one intended rather than the one that happened.
+        let error = answer(
+            "duckdb",
+            Path::new("/nonexistent/hits.parquet"),
+            &["q43".to_owned()],
+            10,
+            1,
+            1 << 30,
+            None,
+        )
+        .expect_err("q43 is one past the end of the workload");
+        assert!(error.to_string().contains("no query called q43"), "{error}");
     }
 }
