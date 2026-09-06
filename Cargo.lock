@@ -641,13 +641,22 @@ dependencies = [
 name = "bench-run"
 version = "0.2.1"
 dependencies = [
+ "arrow-array 59.3.0",
+ "arrow-schema 59.3.0",
  "bench-core",
  "bench-corpus",
  "bench-driver",
  "bench-env",
+ "bench-workload",
+ "driver-arrow-parquet",
+ "driver-datafusion",
+ "driver-duckdb",
+ "libc",
+ "parquet",
  "rand 0.10.2",
  "rand_chacha 0.10.0",
  "serde",
+ "tempfile",
  "thiserror",
  "toml",
  "tracing",
@@ -664,6 +673,17 @@ dependencies = [
  "serde",
  "thiserror",
  "toml",
+]
+
+[[package]]
+name = "bench-workload"
+version = "0.2.1"
+dependencies = [
+ "bench-driver",
+ "blake3",
+ "hex",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]

@@ -18,12 +18,27 @@ bench-core.workspace = true
 bench-corpus.workspace = true
 bench-driver.workspace = true
 bench-env.workspace = true
+bench-workload.workspace = true
+libc.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 toml.workspace = true
 tracing.workspace = true
+
+# The three systems under test, here rather than in the dependencies because nothing this crate
+# publishes constructs a driver yet. The whole workload has to be shown running against real engines
+# somewhere, and a test that builds a small hits table and runs all forty three queries over it is
+# the only way to know the protocol works without the fourteen gigabyte corpus in front of it.
+[dev-dependencies]
+arrow-array.workspace = true
+arrow-schema.workspace = true
+driver-arrow-parquet = { path = "../../drivers/driver-arrow-parquet" }
+driver-datafusion = { path = "../../drivers/driver-datafusion" }
+driver-duckdb = { path = "../../drivers/driver-duckdb" }
+parquet = { workspace = true, features = ["arrow", "snap"] }
+tempfile.workspace = true
 
 [lints]
 workspace = true
