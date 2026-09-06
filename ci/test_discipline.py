@@ -136,9 +136,70 @@ def check_parts_cases() -> None:
         failures.append(f"a subset of itself: got {said}")
 
 
+def sources(name: str, text: str) -> list[str]:
+    """Runs the override checks over one made up source file and returns what they said."""
+    before = list(discipline.failures)
+    discipline.failures.clear()
+    try:
+        discipline.check_source_for_overrides(name, text)
+        return list(discipline.failures)
+    finally:
+        discipline.failures[:] = before
+
+
+def check_override_cases() -> None:
+    clean = (
+        "fn one(store: &Store, entry: &Entry) -> Result<(), FetchError> {\n"
+        "    let inserted = store.insert_stream(&mut counting, &entry.blake3);\n"
+        "    Ok(())\n"
+        "}\n"
+    )
+    said = sources("crates/bench-corpus/src/fetch.rs", clean)
+    if said:
+        failures.append(f"a fetch that names the pinned digest: expected no complaint and got {said}")
+
+    for name, line in (
+        ("a flag that forces past a mismatch", "    if args.force { return Ok(()); }\n"),
+        ("a flag spelled with a dash", "    #[arg(long = \"no-verify\")]\n"),
+        ("an environment variable", "    if std::env::var(\"ANYTHING\").is_ok() { return Ok(()); }\n"),
+    ):
+        said = sources("crates/bench-corpus/src/fetch.rs", clean + line)
+        if not any("hard failure" in one for one in said):
+            failures.append(f"{name}: expected a complaint and got {said}")
+
+    said = sources(
+        "crates/bench-corpus/src/fetch.rs",
+        clean.replace("insert_stream(&mut counting, &entry.blake3)", "insert_file(&path)"),
+    )
+    if not any("without naming the digest" in one for one in said):
+        failures.append(f"an insert that names no digest: expected a complaint and got {said}")
+
+    # A test says the words a run may not act on, and the test that proves a
+    # mismatch is fatal is going to say most of them.
+    said = sources(
+        "crates/bench-corpus/src/fetch.rs",
+        clean + "#[cfg(test)]\nmod tests {\n    fn force() { store.insert_file(&path); }\n}\n",
+    )
+    if said:
+        failures.append(f"the same words inside a test module: expected no complaint and got {said}")
+
+    # insert_file is the right call for a store and the wrong one for a corpus,
+    # so it is only refused where corpus bytes go in.
+    said = sources("crates/bench-corpus/src/store.rs", "    self.insert_file(source)\n")
+    if said:
+        failures.append(f"the store using its own insert: expected no complaint and got {said}")
+
+    # The word has to be a word. eq_ignore_ascii_case is not an override and
+    # neither is a function named enforce.
+    said = sources("crates/bench-corpus/src/store.rs", "    let enforced = name.eq_ignore_ascii_case(other);\n")
+    if said:
+        failures.append(f"a word that merely contains one: expected no complaint and got {said}")
+
+
 def main() -> int:
     expect_clean("a complete manifest passes", GOOD)
     check_parts_cases()
+    check_override_cases()
 
     expect_complaint(
         "a manifest that disagrees with its directory",

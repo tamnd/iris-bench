@@ -464,6 +464,81 @@ mod tests {
         assert!(fetched[0].deduplicated);
     }
 
+    /// A server that answers one request with `body` and stops, on a port the operating system
+    /// picks so that tests running at the same time do not collide.
+    ///
+    /// Worth the twenty lines. Everything else about a fetch can be tested without a network, and
+    /// the one thing that cannot is what happens when a real download turns out to be the wrong
+    /// bytes, which is the failure this whole crate is built around.
+    fn serving(body: &'static [u8]) -> (String, std::thread::JoinHandle<()>) {
+        use std::io::{Read as _, Write as _};
+
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let url = format!("http://{}/example.bin", listener.local_addr().unwrap());
+        let handle = std::thread::spawn(move || {
+            let Ok((mut socket, _)) = listener.accept() else {
+                return;
+            };
+            let mut request = [0_u8; 1024];
+            let _ = socket.read(&mut request);
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = socket.write_all(head.as_bytes());
+            let _ = socket.write_all(body);
+        });
+        (url, handle)
+    }
+
+    /// A manifest pinning one file at `digest` and `bytes`, served from `url`.
+    fn pinning(url: &str, digest: &Digest, bytes: usize) -> Manifest {
+        manifest(
+            url,
+            &format!(
+                "[[files]]\npath = \"example.bin\"\nblake3 = \"{}\"\nbytes = {bytes}\n",
+                digest.to_hex()
+            ),
+        )
+    }
+
+    #[test]
+    fn a_download_that_is_what_was_pinned_lands_in_the_store() {
+        let (url, server) = serving(b"what actually arrived");
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let promised = Digest::of_bytes(b"what actually arrived");
+
+        let fetched = corpus(&pinning(&url, &promised, 21), &store, &mut |_| {}).unwrap();
+        server.join().unwrap();
+
+        assert_eq!(fetched[0].digest, promised);
+        assert!(store.contains(&promised));
+    }
+
+    #[test]
+    fn a_download_that_is_not_what_was_pinned_is_refused_and_nothing_is_kept() {
+        // Same length as what the server sends, so the size check cannot fire first and this is
+        // known to be the digest refusing it.
+        let (url, server) = serving(b"what actually arrived");
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let promised = Digest::of_bytes(b"what was promised!!!!");
+
+        let error = corpus(&pinning(&url, &promised, 21), &store, &mut |_| {}).unwrap_err();
+        server.join().unwrap();
+
+        assert!(matches!(error, FetchError::Digest { .. }));
+        let message = format!("{error}");
+        assert!(message.contains("not overridable"), "{message}");
+        assert!(message.contains(&promised.to_hex()), "{message}");
+        assert!(message.contains(&url), "{message}");
+
+        // Neither under the name it was promised as, nor under the name it turned out to have.
+        assert!(!store.contains(&promised));
+        assert!(!store.contains(&Digest::of_bytes(b"what actually arrived")));
+    }
+
     #[test]
     fn a_corpus_already_in_the_store_is_not_requested_again() {
         // The source is unreachable on purpose. If this passes, nothing went near the network.
