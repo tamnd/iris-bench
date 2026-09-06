@@ -19,6 +19,7 @@ bench-corpus.workspace = true
 bench-driver.workspace = true
 bench-env.workspace = true
 bench-workload.workspace = true
+blake3.workspace = true
 libc.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
@@ -38,6 +39,7 @@ driver-arrow-parquet = { path = "../../drivers/driver-arrow-parquet" }
 driver-datafusion = { path = "../../drivers/driver-datafusion" }
 driver-duckdb = { path = "../../drivers/driver-duckdb" }
 parquet = { workspace = true, features = ["arrow", "snap"] }
+serde_json.workspace = true
 tempfile.workspace = true
 
 [lints]
