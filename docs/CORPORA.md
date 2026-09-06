@@ -76,9 +76,27 @@ Lower case hex, always, and an upper case spelling is refused rather than normal
 
 BLAKE3 rather than SHA-256, because hashing a hundred gigabyte corpus has to be cheap enough that nobody is ever tempted to skip it. A check that only runs when somebody remembers to run it is not a pin. On the i9-13900K under Linux, the 13.8 GiB ClickBench file hashes in 2.4 seconds off a warm page cache, which is about 5.7 GiB per second, so on that machine the check is bounded by the disk rather than by the hash.
 
-A digest mismatch on fetch is a hard failure with no override, and the message carries both digests. A mismatch reported as a boolean is a mismatch somebody has to reproduce before they can begin working out what happened.
+A digest mismatch is a hard failure with no override, and the message carries both digests. A mismatch reported as a boolean is a mismatch somebody has to reproduce before they can begin working out what happened. The section below is about the no override part, which is the half that is easy to mean and hard to keep.
 
 The size is checked as well as the digest, even though the digest would catch anything the size would. They are reported separately because a wrong length is a truncated download and a full length mismatch is a different file, and those two send somebody to look in completely different places.
+
+## No override
+
+There is no flag, no environment variable and no prompt. A corpus whose bytes changed is a different corpus, and continuing anyway is how a silently corrupted download becomes a published number six weeks later. The command fails, nothing is kept, and the exit status says so.
+
+Nothing is kept is a separate claim from the command fails, and it is the one that takes work. The store writes through a temporary file under the name the manifest promised, because the digest is not final until the last byte has arrived, so a mismatch means removing an object that is already in place. What is left afterwards is neither the object under the name it was promised as nor the object under the name it turned out to have. The second of those is a real temptation: an object addressed by its own digest is exactly what this store holds, so keeping the wrong bytes would be defensible and would also mean a corpus that changed at its source quietly accumulates in every store it reaches.
+
+There is no override today, and the point of this section is that there cannot be one tomorrow either without somebody deliberately removing the check that says so. `check_digest_is_not_overridable` in `ci/discipline.py` reads the four files a corpus's bytes pass through, which are `fetch.rs`, `generate.rs`, `store.rs` and the CLI's `corpus.rs`, and fails the build on three things.
+
+An override name. `force`, `no_verify`, `skip_verify`, `allow_mismatch`, `insecure` and the rest of that family, matched as whole words so that `eq_ignore_ascii_case` is not an override and `enforce` is not `force`. This is a list of spellings rather than a rule about meaning, which is the right shape for it: the thing being prevented is somebody adding one in a hurry, and a hurry does not invent new vocabulary.
+
+A read of the environment. `env::var` and `option_env!` are refused in those four files. An environment variable is what an override reaches for first, because it leaves no trace in the command somebody pastes into an issue, so a run that behaved differently is indistinguishable afterwards from one that did not. `env!("CARGO_PKG_VERSION")` and `std::env::consts::OS` are not reads of the environment a run happens in and are not affected.
+
+An insert that names no digest. Every byte of a corpus enters the store through `insert_stream` or `insert_verified`, both of which take the digest the manifest pinned. `insert_bytes` and `insert_file` name whatever they are given, which is the right behaviour for a content addressed store and the wrong one for a corpus, and reaching for one of them in the fetch or generate path is how the check would get skipped without anybody having to write the word skip.
+
+All three rules stop at the first `#[cfg(test)]`, because a test is allowed to say words a run may not act on, and the tests that prove a mismatch is fatal say most of them.
+
+Those tests are the other half. `bench-corpus` stands up a one request HTTP server on a port the operating system picks, serves bytes that are not what the manifest pinned at exactly the pinned length so the size check cannot fire first, and checks that the fetch fails, that the message names both digests and the URL, and that neither digest is in the store afterwards. The same server serving the right bytes is a second test, so the first one is known to be failing on the digest rather than on the scaffolding. On the generated side, `iris-bench corpus` is run end to end against a generator that writes the wrong bytes, and it fails with no object left behind. That last one is at the level a person actually uses, which is where a warning above a corpus that then gets measured would have shown up.
 
 ## Fetching
 
@@ -167,3 +185,5 @@ Twice, deliberately, and the duplication is not an accident.
 `bench_corpus::Manifest` validates the same rules at run time. It runs on manifests that are not in this repository at all, which is where the format is heading once corpora are contributed rather than curated.
 
 The two lists are kept in step by hand. If they drift, the Python one is the one that gates the build and the Rust one is the one that gates a run, and either catching something the other misses is a bug in the one that missed it.
+
+`check_digest_is_not_overridable` is the exception to that pattern, because it has no Rust counterpart and cannot have one. It is a check on the source rather than on a manifest, so the thing it would have to run against is itself.

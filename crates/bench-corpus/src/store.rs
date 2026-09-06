@@ -508,6 +508,10 @@ mod tests {
         // The object was renamed into place before the digest was known, because the digest is only
         // final once the last byte has arrived. What matters is that it is gone again.
         assert!(!store.contains(&promised));
+        // Nor under the name the bytes do hash to. Keeping them there would be defensible, since
+        // an object named by its own digest is exactly what this store holds, and it would also
+        // mean a corpus that changed at its source quietly accumulates in every store it reaches.
+        assert!(!store.contains(&Digest::of_bytes(b"what actually arrived")));
         let directory = store.path(&promised).parent().unwrap().to_owned();
         let left: Vec<_> = std::fs::read_dir(&directory)
             .map(|entries| entries.filter_map(Result::ok).collect())

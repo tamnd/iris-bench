@@ -342,6 +342,103 @@ def check_generator(name: str, corpus: dict, generator: dict | None) -> None:
             fail(f"corpus {name}: the generator's {key} is not a string")
 
 
+# The files a corpus's bytes pass through on their way into the store. An
+# override to the digest check would have to be readable from one of these, so
+# these are the ones the rules below are enforced over.
+CORPUS_PATH = (
+    "crates/bench-corpus/src/fetch.rs",
+    "crates/bench-corpus/src/generate.rs",
+    "crates/bench-corpus/src/store.rs",
+    "crates/bench-cli/src/corpus.rs",
+)
+
+# Names an override would arrive under. This is a list of spellings rather than
+# a rule, because the thing being prevented is somebody adding one in a hurry
+# and a hurry does not invent new vocabulary.
+OVERRIDE_NAMES = (
+    "force",
+    "no_verify",
+    "no-verify",
+    "skip_verify",
+    "skip-verify",
+    "skip_digest",
+    "skip-digest",
+    "allow_mismatch",
+    "allow-mismatch",
+    "ignore_digest",
+    "ignore-digest",
+    "insecure",
+    "unverified",
+)
+
+
+OVERRIDE = re.compile(r"(?<![\w-])(?:" + "|".join(OVERRIDE_NAMES) + r")(?![\w-])")
+
+# env!() is a compile time constant and std::env::consts::OS is a fact about the
+# build, so neither is a way for a run to be told to behave differently. A read
+# of the process environment is, and it is the one an override reaches for
+# first, because it leaves no trace in the command somebody pastes into an issue.
+ENVIRONMENT = re.compile(r"\benv::var(?:_os)?\b|\boption_env!")
+
+# Every byte of a corpus enters the store through a call that names the digest
+# the manifest pinned. insert_bytes and insert_file name whatever they are
+# given, which is the right behaviour for a store and the wrong one for a
+# corpus, so reaching for either of them here is how the check would get skipped
+# without anybody having to write the word skip.
+INSERT = re.compile(r"\binsert_(\w+)\b")
+VERIFYING_INSERTS = {"stream", "verified"}
+
+
+def check_source_for_overrides(name: str, text: str) -> None:
+    """Reads one file of the corpus path and complains about anything that could skip a digest.
+
+    Tests live at the end of every file in this workspace, so everything from
+    the first `#[cfg(test)]` onwards is left alone. A test is allowed to say the
+    words a run may not act on, and the test that proves a mismatch fails is
+    going to say several of them.
+    """
+    lines = text.splitlines()
+    end = next(
+        (number for number, line in enumerate(lines) if line.strip() == "#[cfg(test)]"),
+        len(lines),
+    )
+    inserts = name.endswith(("fetch.rs", "generate.rs"))
+    for number, line in enumerate(lines[:end], 1):
+        if line.lstrip().startswith("//"):
+            continue
+        for pattern, what in ((OVERRIDE, "an override"), (ENVIRONMENT, "a read of the environment")):
+            hit = pattern.search(line)
+            if hit:
+                fail(
+                    f"{name}:{number}: {hit.group()} looks like {what}, and a digest mismatch is a"
+                    f" hard failure with no way around it"
+                )
+        if not inserts:
+            continue
+        for hit in INSERT.finditer(line):
+            if hit.group(1) not in VERIFYING_INSERTS:
+                fail(
+                    f"{name}:{number}: {hit.group()} puts bytes in the store without naming the"
+                    f" digest the manifest pinned"
+                )
+
+
+def check_digest_is_not_overridable() -> None:
+    """A digest mismatch is a hard failure, and that is enforced rather than intended.
+
+    None of this is true today by accident, it is true because the code was
+    written that way. But a rule that is only true until somebody changes their
+    mind is not a rule, and the change that would break it is a small one made
+    at the end of a long afternoon.
+    """
+    for name in CORPUS_PATH:
+        path = ROOT / name
+        if not path.is_file():
+            fail(f"{name}: is named as part of the corpus path and is not there")
+            continue
+        check_source_for_overrides(name, path.read_text(encoding="utf-8"))
+
+
 def check_no_machine_identity() -> None:
     """Results carry hardware classes, never machine identity.
 
@@ -374,6 +471,7 @@ def check_no_machine_identity() -> None:
 def main() -> int:
     check_drivers()
     check_corpora()
+    check_digest_is_not_overridable()
     check_no_machine_identity()
     if failures:
         print("Discipline checks failed:\n", file=sys.stderr)
