@@ -1,0 +1,39 @@
+[package]
+name = "driver-arrow-parquet"
+description = "The arrow-rs Parquet reader, which is the reference reader every format here is measured against."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme.workspace = true
+publish.workspace = true
+
+[dependencies]
+arrow-array.workspace = true
+arrow-schema.workspace = true
+bench-driver.workspace = true
+# parquet's own default feature set, written out because the workspace turns defaults off so that a
+# crate which only reads footers does not pull in every codec. This one is the reference reader and
+# has to be the reader arrow-rs publishes, codecs and all: one that cannot decompress a page would
+# score well on the files it happens to be able to read.
+parquet = { workspace = true, features = [
+    "arrow",
+    "base64",
+    "brotli",
+    "flate2-zlib-rs",
+    "lz4",
+    "simdutf8",
+    "snap",
+    "zstd",
+] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
