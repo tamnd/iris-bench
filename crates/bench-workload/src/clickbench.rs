@@ -308,7 +308,9 @@ impl Undetermined {
     #[must_use]
     pub fn why(self) -> &'static str {
         match self {
-            Self::Tie => "the LIMIT cuts a tie, so which rows come back is not decided by the query",
+            Self::Tie => {
+                "the LIMIT cuts a tie, so which rows come back is not decided by the query"
+            }
             Self::Setup => {
                 "SELECT * over two setups that do not build the same table out of the same corpus"
             }

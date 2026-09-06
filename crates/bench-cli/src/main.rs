@@ -271,6 +271,10 @@ enum ClickbenchCommand {
         /// it is the default.
         #[arg(long, value_enum, default_value_t = Which::Hot)]
         column: Which,
+        /// Grade the run even though it was taken on a machine that failed its gates, or by a
+        /// version that did not write down whether it had. Every line then says so.
+        #[arg(long)]
+        anyway: bool,
     },
 }
 
@@ -396,9 +400,11 @@ fn clickbench(what: ClickbenchCommand) -> anyhow::Result<()> {
             scratch,
         ),
         ClickbenchCommand::Check { records } => clickbench::check(&records),
-        ClickbenchCommand::Calibrate { records, column } => {
-            clickbench::calibrate(&records, column.into())
-        }
+        ClickbenchCommand::Calibrate {
+            records,
+            column,
+            anyway,
+        } => clickbench::calibrate(&records, column.into(), anyway),
     }
 }
 
