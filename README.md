@@ -98,6 +98,8 @@ cargo run --release -p iris-bench-cli -- clickbench check duckdb.json datafusion
 
 Agreement is per query, across every system that answered it. A query only one system answered is reported separately rather than counted as confirmed, and a system that gave two different answers across its own three runs is named even when the systems agreed with each other.
 
+Ten of the forty three do not have one answer, and they are named in code with the reason attached rather than tolerated when they come up. Nine put a LIMIT on top of an ordering that does not tell the rows inside the window apart from the ones just outside, so two correct systems return a different arbitrary ten. The tenth asks for every column, and the two setups ClickBench publishes do not build the same table out of the same corpus, so the same rows cannot render the same way. Each of the ten was run against the real corpus and read before it went on the list, a test pins the list so it cannot grow quietly, and everything not on it still has to agree.
+
 A digest tells you two systems differ and tells you nothing about what they differ on, so there is a fourth command for the moment after a comparison fails. It takes the table in the same way a run does, runs only the queries you name, and prints the rows both digests were taken over.
 
 ```
