@@ -30,6 +30,13 @@ arguments = ["-s", "1", "-f"]
 version = "2.17.3"
 version_arguments = ["-h"]
 
+# Where these digests have been produced, spelled the way std::env::consts::OS spells it. Generating
+# anywhere else is refused rather than attempted. Windows is absent for a reason that is in the tool
+# rather than in us: dbgen's print.c opens its output with fopen(path, "w"), which is text mode, so
+# the Windows C runtime turns every newline into a carriage return and a newline and the bytes below
+# cannot be written there. docs/CORPORA.md has the rest of it.
+platforms = ["linux", "macos"]
+
 # dbgen writes to DSS_PATH and reads its column distributions from dists.dss, which lives beside the
 # binary rather than anywhere a package manager would put it. Both are facts about dbgen rather than
 # about generators, which is why they are written here and not in the code that runs it.

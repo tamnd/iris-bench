@@ -17,6 +17,15 @@
 //! Not from here. TPC's tools are downloaded by the person running the generation, under TPC's own
 //! terms, and `docs/LICENSING.md` says why this repository neither ships them nor redistributes
 //! what they produce.
+//!
+//! # Why the platform is checked first
+//!
+//! For the same reason as the version, and for one platform it is not hypothetical. `dbgen` opens
+//! its output with `fopen(path, "w")`, which is text mode, and on Windows the C runtime turns every
+//! newline in text mode output into a carriage return and a newline. The bytes differ by
+//! construction there, so a manifest pinned from Unix output cannot be produced on Windows, and the
+//! digest mismatch that would result says nothing about the platform being the reason. The
+//! manifest names the platforms its digests came from and generating anywhere else is refused.
 
 use std::{
     collections::BTreeMap,
@@ -51,14 +60,30 @@ pub struct Generated {
 pub enum GenerateError {
     /// The corpus is not one that is produced locally.
     #[error(
-        "{name} is a {category} corpus, so there is nothing to generate. A fetched corpus is \
-         downloaded and a mirrored one is already in the tree"
+        "{name} is a {category} corpus, so there is nothing to generate. It is downloaded, by \
+         `iris-bench corpus {name}`"
     )]
     NotGeneratable {
         /// Which corpus.
         name: String,
         /// What it is instead.
         category: Category,
+    },
+    /// This is not a platform the generator is known to write the pinned bytes on.
+    #[error(
+        "{name} is pinned from output generated on {platforms}, and this is {found}. The digests \
+         in the manifest are of that output, so generating here would fail the digest check rather \
+         than produce a corpus, and the message would say nothing about the platform being the \
+         reason. If {found} writes the same bytes, run the generator by hand, compare, and add \
+         {found} to the manifest"
+    )]
+    Platform {
+        /// Which corpus.
+        name: String,
+        /// Where its bytes are known to reproduce, as a phrase.
+        platforms: String,
+        /// What this machine is, as `std::env::consts::OS` spells it.
+        found: &'static str,
     },
     /// The program could not be started.
     #[error(
@@ -209,6 +234,21 @@ pub fn corpus(
             .collect());
     }
 
+    // After the store is asked and before anything is run. A corpus already on the machine is
+    // bytes, and bytes do not care what wrote them or where, so a machine that cannot generate this
+    // corpus can still use one somebody else generated. What it cannot do is make it here.
+    if !generator
+        .platforms
+        .iter()
+        .any(|platform| platform == std::env::consts::OS)
+    {
+        return Err(GenerateError::Platform {
+            name: manifest.corpus.name.clone(),
+            platforms: listed(&generator.platforms),
+            found: std::env::consts::OS,
+        });
+    }
+
     let program = program.map_or_else(|| PathBuf::from(&generator.program), Path::to_path_buf);
     check_version(generator, &program)?;
     prepare(scratch)?;
@@ -219,6 +259,15 @@ pub fn corpus(
         generated.push(one(&program, entry, scratch, store, watch)?);
     }
     Ok(generated)
+}
+
+/// Names a list of platforms the way somebody would say it out loud.
+fn listed(platforms: &[String]) -> String {
+    match platforms {
+        [] => "nowhere".to_owned(),
+        [only] => only.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
 }
 
 /// Asks the program what it is and refuses to go on if the answer is not what the manifest pins.
@@ -390,6 +439,7 @@ mod tests {
              [generator]\n\
              program = \"example-gen\"\n\
              version = \"1.0.0\"\n\
+             platforms = [\"linux\", \"macos\", \"windows\"]\n\
              \n\
              [[files]]\n\
              path = \"table.tbl\"\n\
@@ -610,6 +660,64 @@ mod tests {
         );
         assert_eq!(filled["OUT"], "/var/tmp/scratch");
         assert_eq!(filled["CFG"], "/opt/tpch/dists.dss");
+    }
+
+    #[test]
+    fn a_platform_the_corpus_was_not_pinned_on_is_refused_before_anything_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path().join("store")).unwrap();
+
+        let mut pinned = manifest("a|b|\n");
+        pinned.generator.as_mut().unwrap().platforms = vec!["plan9".to_owned()];
+        // A program that does not exist, so this coming out as a platform refusal rather than as a
+        // missing program is what says the platform was checked before anything was run.
+        let error = corpus(
+            &pinned,
+            &store,
+            Some(Path::new("nothing-that-exists")),
+            &dir.path().join("scratch"),
+            &mut |_| {},
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, GenerateError::Platform { .. }));
+        assert!(format!("{error}").contains("plan9"));
+        assert!(format!("{error}").contains(std::env::consts::OS));
+    }
+
+    #[test]
+    fn a_corpus_already_in_the_store_is_not_refused_for_the_platform() {
+        // Bytes do not care what wrote them or where. A machine that cannot generate this corpus
+        // can still use one somebody else generated, and only the making of it is refused.
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path().join("store")).unwrap();
+        store.insert_bytes(b"a|b|\n").unwrap();
+
+        let mut pinned = manifest("a|b|\n");
+        pinned.generator.as_mut().unwrap().platforms = vec!["plan9".to_owned()];
+        let generated = corpus(
+            &pinned,
+            &store,
+            Some(Path::new("nothing-that-exists")),
+            &dir.path().join("scratch"),
+            &mut |_| {},
+        )
+        .unwrap();
+
+        assert!(generated[0].deduplicated);
+    }
+
+    #[test]
+    fn a_list_of_platforms_reads_as_a_sentence() {
+        assert_eq!(listed(&["linux".to_owned()]), "linux");
+        assert_eq!(
+            listed(&["linux".to_owned(), "macos".to_owned()]),
+            "linux and macos"
+        );
+        assert_eq!(
+            listed(&["linux".to_owned(), "macos".to_owned(), "windows".to_owned()]),
+            "linux, macos and windows"
+        );
     }
 
     #[test]

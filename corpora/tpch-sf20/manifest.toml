@@ -25,6 +25,12 @@ arguments = ["-s", "20", "-f"]
 version = "2.17.3"
 version_arguments = ["-h"]
 
+# The same platforms as scale factor 1, and Windows is absent for the same reason, which is that
+# dbgen writes its tables in text mode and Windows rewrites newlines on the way out. The scale factor
+# does not come into it, so what was shown at scale factor 1 settles it here too. docs/CORPORA.md has
+# the detail.
+platforms = ["linux", "macos"]
+
 # dbgen writes to DSS_PATH and reads its column distributions from dists.dss, which lives beside the
 # binary rather than anywhere a package manager would put it. Both are facts about dbgen rather than
 # about generators, which is why they are written here and not in the code that runs it.
