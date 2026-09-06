@@ -1,8 +1,9 @@
 //! `iris-bench`, the command line tool.
 //!
-//! Only `check`, `corpus`, `noise`, `overhead` and `resident` are implemented. See
+//! Only `check`, `clickbench`, `corpus`, `noise`, `overhead` and `resident` are implemented. See
 //! `docs/ROADMAP.md` for the rest.
 
+mod clickbench;
 mod corpus;
 mod noise;
 mod overhead;
@@ -161,6 +162,12 @@ enum Command {
         #[arg(long, value_name = "PATH")]
         scratch: Option<PathBuf>,
     },
+    /// Run the 43 published `ClickBench` queries against one system, or compare runs.
+    Clickbench {
+        /// What to do.
+        #[command(subcommand)]
+        what: ClickbenchCommand,
+    },
     /// Run a workload and append the results to the store.
     Run {
         /// Path to a run manifest.
@@ -173,6 +180,61 @@ enum Command {
     },
     /// Render the store.
     Report,
+}
+
+/// The two halves of `clickbench`.
+///
+/// Running and comparing are separate because the systems are measured one at a time, often on
+/// different days, and a comparison that could only happen inside a run would be a comparison that
+/// never happened.
+#[derive(Debug, Subcommand)]
+enum ClickbenchCommand {
+    /// Measure one system.
+    Run {
+        /// Which system: `duckdb`, `datafusion` or `arrow-parquet`.
+        #[arg(long)]
+        driver: String,
+        /// The Parquet file holding the hits table, already fetched and already verified.
+        #[arg(long, value_name = "PATH")]
+        file: PathBuf,
+        /// Where to write the record.
+        #[arg(long, value_name = "PATH")]
+        out: Option<PathBuf>,
+        /// The seed to replay, as sixteen lower case hex characters. A fresh one when absent.
+        #[arg(long)]
+        seed: Option<bench_run::Seed>,
+        /// Which pass over the workload this is, when running it more than once under one seed.
+        #[arg(long, default_value_t = 0)]
+        pass: u32,
+        /// Run them in the order the file lists them, which is what randomised ordering is for
+        /// avoiding. For reproducing somebody else's protocol rather than for producing a number.
+        #[arg(long)]
+        in_order: bool,
+        /// How many threads the system is allowed. Defaults to the whole machine, which is what the
+        /// leaderboard entries are taken with.
+        #[arg(long)]
+        threads: Option<usize>,
+        /// How many gibibytes the system is allowed.
+        #[arg(long, default_value_t = 16)]
+        memory: u64,
+        /// Where the system may write, when that is not `run-scratch/`.
+        #[arg(long, value_name = "PATH")]
+        scratch: Option<PathBuf>,
+        /// Drop the page cache before each query, which is what makes the cold column cold. Needs
+        /// root on Linux, and says so rather than pretending when it does not have it.
+        #[arg(long)]
+        cold: bool,
+        /// Measure even though the machine failed its gates, which produces a number nobody should
+        /// put next to a leaderboard.
+        #[arg(long)]
+        anyway: bool,
+    },
+    /// Read records back and say whether the systems agreed about the answers.
+    Check {
+        /// The records to compare, two or more.
+        #[arg(required = true, num_args = 2..)]
+        records: Vec<PathBuf>,
+    },
 }
 
 /// What a caller needs the machine to be good enough for.
@@ -282,6 +344,35 @@ fn main() -> anyhow::Result<()> {
             f64::from(floor) * 1_000.0,
             anyway,
         ),
+        Command::Clickbench { what } => match what {
+            ClickbenchCommand::Run {
+                driver,
+                file,
+                out,
+                seed,
+                pass,
+                in_order,
+                threads,
+                memory,
+                scratch,
+                cold,
+                anyway,
+            } => clickbench::run(
+                &driver,
+                &file,
+                out,
+                seed,
+                pass,
+                in_order,
+                threads
+                    .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, Into::into)),
+                memory * (1 << 30),
+                scratch,
+                cold,
+                anyway,
+            ),
+            ClickbenchCommand::Check { records } => clickbench::check(&records),
+        },
         Command::Corpus {
             name,
             root,
@@ -290,5 +381,19 @@ fn main() -> anyhow::Result<()> {
             scratch,
         } => corpus::run(&name, root, store, generator.as_deref(), scratch),
         other => anyhow::bail!("not implemented yet: {other:?}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::CommandFactory as _;
+
+    use super::Cli;
+
+    #[test]
+    fn the_command_line_is_well_formed() {
+        // clap catches its own misconfiguration here rather than at the moment somebody runs the
+        // tool on a machine that took an hour to get the corpus onto.
+        Cli::command().debug_assert();
     }
 }

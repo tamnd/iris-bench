@@ -17,14 +17,25 @@ publish.workspace = true
 anyhow.workspace = true
 bench-core.workspace = true
 bench-corpus.workspace = true
+bench-driver.workspace = true
 bench-env.workspace = true
 bench-report.workspace = true
 bench-run.workspace = true
 bench-store.workspace = true
+bench-workload.workspace = true
 clap.workspace = true
 iris-source.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 tempfile.workspace = true
 tracing-subscriber.workspace = true
+
+# The systems under test. This is the one crate that has to know all three by name, because turning
+# a name typed on a command line into a running engine is what a command line tool is for, and every
+# other crate here is better off not being able to.
+driver-arrow-parquet = { path = "../../drivers/driver-arrow-parquet" }
+driver-datafusion = { path = "../../drivers/driver-datafusion" }
+driver-duckdb = { path = "../../drivers/driver-duckdb" }
 
 [lints]
 workspace = true

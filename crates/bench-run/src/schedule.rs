@@ -138,6 +138,21 @@ impl Schedule {
         Self { seed, pass, order }
     }
 
+    /// The order the file lists them in, which is the one this module exists to avoid.
+    ///
+    /// Here so that a deliberate unshuffled run still records an order rather than recording
+    /// nothing. A result with no schedule on it reads as a result nobody wrote the order down for,
+    /// and that is a different and worse thing than a result whose order was the obvious one. The
+    /// seed is zero because there is no seed, and no shuffle was drawn from it.
+    #[must_use]
+    pub fn identity(len: usize) -> Self {
+        Self {
+            seed: Seed(0),
+            pass: 0,
+            order: (0..len).collect(),
+        }
+    }
+
     /// The seed this order came from.
     #[must_use]
     pub fn seed(&self) -> Seed {
@@ -251,6 +266,16 @@ mod tests {
         assert_ne!(first.order(), second.order());
         assert_eq!(first.seed(), second.seed());
         assert_eq!(second.pass(), 1);
+    }
+
+    #[test]
+    fn an_unshuffled_run_still_records_an_order() {
+        let plain = Schedule::identity(43);
+        assert_eq!(plain.order(), (0..43).collect::<Vec<_>>().as_slice());
+        assert_eq!(plain.seed(), Seed::from(0));
+        // And it is not the order any real seed produced, which is what stops one being mistaken
+        // for the other when the two sit next to each other in a results directory.
+        assert_ne!(plain.order(), Schedule::new(Seed::from(0), 0, 43).order());
     }
 
     #[test]

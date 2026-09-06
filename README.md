@@ -32,7 +32,7 @@ Public BI has been both the design input and the evaluation set for six years of
 
 Pre-alpha. B0 is done as of `v0.1.0` and B1 as of `v0.2.0`, so the measuring apparatus and the data exist and the benchmarks do not. Milestones B0 through B8 are [public](https://github.com/tamnd/iris-bench/milestones) with one issue per exit gate.
 
-What B0 established is in `docs/ROADMAP.md` under that milestone, and the short version is that this fleet can measure, on one machine, for ratios always and for durations under a gate. The noise floor is 1.05% on the one eligible role and over two percent everywhere else, and the harness adds 41.1 ns to a sample, which is under one percent of anything longer than 4.1 microseconds. `iris-bench check`, `noise`, `overhead`, `resident` and `corpus` run today. Nothing else does.
+What B0 established is in `docs/ROADMAP.md` under that milestone, and the short version is that this fleet can measure, on one machine, for ratios always and for durations under a gate. The noise floor is 1.05% on the one eligible role and over two percent everywhere else, and the harness adds 41.1 ns to a sample, which is under one percent of anything longer than 4.1 microseconds. `iris-bench check`, `noise`, `overhead`, `resident`, `corpus` and `clickbench` run today. Nothing else does.
 
 B1 is done and is the corpora. ClickBench, TPC-H at scale factor 1 and 20, Public BI in both the full 206 table set and the 36 table subset, and Silesia and enwik8 are pinned and reproduce, some by download, the TPC-H pair from `dbgen`, and the last two from a mirror because their original hosting has moved more than once. Every one of them was fetched or generated end to end through the real command rather than checked on paper, which is 43 GB of Public BI and 22 GB of TPC-H among other things.
 
@@ -49,6 +49,7 @@ B0 through B4 need no `iris` code to exist, which is deliberate. If `iris` is ne
 | `bench-corpus` | Corpus manifests, fetching, generating, verifying, and the content addressed store. |
 | `bench-driver` | The `Driver` trait every system implements. The prepare, load and run split lives here. |
 | `bench-run` | The runner. Process isolation, ordering, storage tiers, cache control. |
+| `bench-workload` | The published workloads, carried verbatim, and the rules their authors run them under. |
 | `bench-store` | Append only result storage and the claim ledger. |
 | `bench-report` | Rendering, including the rules that stop a misleading table being drawn. |
 | `bench-cli` | `iris-bench` the command line tool. |
@@ -78,6 +79,22 @@ A generated corpus is the same command with the generator pointed at. Nothing is
 ```
 cargo run -p iris-bench-cli -- corpus tpch-sf1 --generator ~/tpch-kit/dbgen/dbgen --store /var/tmp/iris-corpus
 ```
+
+Running ClickBench is one command per system. The 43 queries are the published files carried here byte for byte, three runs each, first run reported cold and best of the rest reported hot, which is the protocol the upstream harness uses.
+
+```
+cargo run --release -p iris-bench-cli -- clickbench run --driver duckdb --file /var/tmp/iris-corpus/hits.parquet --out duckdb.json
+```
+
+The order the queries are visited in is randomised and the seed is written into the record, so handing that seed back replays the same schedule. Dropping the page cache before each query is `--cold` and it needs root, and a run that could not drop it records why rather than calling itself cold anyway. The tool refuses to measure on a machine that failed the eligibility gates unless `--anyway` is passed, since a number taken on an unfit machine is a number somebody will put in a table.
+
+Then the records are compared, which is the part that catches a system being fast because it answered a different question.
+
+```
+cargo run --release -p iris-bench-cli -- clickbench check duckdb.json datafusion.json arrow-parquet.json
+```
+
+Agreement is per query, across every system that answered it. A query only one system answered is reported separately rather than counted as confirmed, and a system that gave two different answers across its own three runs is named even when the systems agreed with each other.
 
 ## Machines
 
