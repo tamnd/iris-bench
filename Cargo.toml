@@ -23,6 +23,7 @@ bench-env = { path = "crates/bench-env", version = "0.2.1" }
 bench-report = { path = "crates/bench-report", version = "0.2.1" }
 bench-run = { path = "crates/bench-run", version = "0.2.1" }
 bench-store = { path = "crates/bench-store", version = "0.2.1" }
+bench-workload = { path = "crates/bench-workload", version = "0.2.1" }
 
 anyhow = "1.0.104"
 arrow-array = "59.3.0"
