@@ -61,9 +61,20 @@ mod tests {
     use super::*;
 
     /// Whether this process could drop the cache even if the mechanism existed.
+    ///
+    /// `cfg!` below is a value and not a compilation switch, so the call still has to compile
+    /// everywhere the tests run even where the branch is never taken. Windows has no effective user
+    /// id to ask about, and the answer it needs is the same one every non root process gets.
+    #[cfg(unix)]
     fn privileged() -> bool {
         // SAFETY: geteuid takes no arguments and cannot fail.
         unsafe { libc::geteuid() == 0 }
+    }
+
+    /// Whether this process could drop the cache even if the mechanism existed.
+    #[cfg(not(unix))]
+    fn privileged() -> bool {
+        false
     }
 
     #[test]

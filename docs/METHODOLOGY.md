@@ -84,6 +84,16 @@ The same applies to a system that answers one query two different ways across it
 
 Every claim this repository intends to test is registered before it is run, with the threshold that decides it. Rows carry a purpose field, either confirmatory or exploratory, and an exploratory row cannot be cited as a claim. A claim that was registered and not run shows in the ledger as pending, which makes quietly dropping an inconvenient result visible as a gap in a committed file.
 
+A registration is a committed file rather than a sentence asserting that one was made, so the ordering is checkable by anybody with the repository in front of them, and the tool refuses to grade a reading taken before the day its own threshold was registered. A threshold written after the number exists is not a threshold, it is a description of the number, and the two look identical on the page a reader eventually sees.
+
+The verdict is one of five words and there is no sixth: REPRODUCED, REPRODUCED-WITH-CAVEAT, NOT-REPRODUCED, NOT-ATTEMPTABLE, PENDING. The three that follow from a measurement are produced by arithmetic over the reading, the threshold and what the instrument can resolve, not chosen by somebody who has just seen how it came out. A vocabulary that can be extended grows a gentler word every time a result is disappointing, and the gentler word is the one that gets quoted.
+
+A caveat cannot rescue a failure. A reading outside the bar is NOT-REPRODUCED whatever else was true about the run, and the only thing a caveat does is turn a pass into a pass with the condition stated next to it. Softening a loss with a note about the circumstances is the exact move the fixed vocabulary exists to prevent.
+
+NOT-ATTEMPTABLE is a fact about our circumstances and is worded that way. An artifact that cannot be obtained reaches it and has to carry a citation saying where it was looked for. So does a bar narrower than what the instrument can resolve, which is why a claim settled by a comparison runs its own control in the same session: a harness that cannot put two copies of one thing closer than nine percent cannot report that two different things are three percent apart. A reading that close to its bar is recorded as undecided rather than graded, and the bar is not widened to a number the instrument happens to clear.
+
+What is not a verdict at all is a claim whose instrument nobody has written yet. That is a gap in this repository's work, and giving it a word would put a finished looking row on a page for something that was never attempted.
+
 ## What gets thrown away
 
 Only runs that failed a gate that was declared in advance. Removing an outlier after looking at it is prohibited, and so is running an experiment repeatedly and publishing the run that worked. The purpose field makes the second one mechanical rather than a matter of discipline.

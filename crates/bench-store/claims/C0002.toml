@@ -1,0 +1,26 @@
+# C0002, registered in tamnd/iris on the day below and measured two days later. The entry in
+# docs/CLAIMS.md is the prose version of this file. Two copies of one fact drift, which is why
+# generating that page from these files rather than maintaining both is its own issue.
+
+id = "C0002"
+title = "what the sliding window costs on a file that is already resident"
+purpose = "confirmatory"
+
+[registered]
+day = "2026-09-04"
+source = "tamnd/iris issue #26 and the M4 checklist of that repository"
+
+[bar]
+reading = "a scan of a resident local file through the windowed path, divided by a scan of the same bytes handed over as one buffer"
+target = 1.0
+tolerance = 0.03
+
+# The defaults of `iris-bench resident`, in bytes, so that re-running this claim does not depend on
+# what the defaults happen to be on the day. A registered claim that reads its numbers from whatever
+# the tool currently defaults to is a claim whose threshold can be moved without editing it.
+[instrument.resident]
+size = 268435456
+span = 4194304
+chunk = 262144
+pairs = 60
+warmup = 3

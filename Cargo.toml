@@ -40,7 +40,12 @@ datafusion = "55.0.0"
 # Bundled on purpose. The version of a system under test belongs in the lockfile rather than in
 # whatever each machine happened to have installed, because a version that varies by machine is a
 # version nobody pinned and every result row carries it.
-duckdb = { version = "1.10505.0", features = ["bundled"] }
+# Parquet is linked in rather than left to autoloading. Without it DuckDB fetches the extension the
+# first time a query touches a Parquet file, which puts a download inside the machine under test, and
+# the version it lands on is whatever the server had rather than the one the lockfile names. It also
+# fails outright where the extension directory is not writable, which is how the Windows job found
+# this.
+duckdb = { version = "1.10505.0", features = ["bundled", "parquet"] }
 flate2 = "1.1.10"
 hdrhistogram = "7.6.0"
 hex = "0.4.3"

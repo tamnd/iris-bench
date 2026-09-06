@@ -720,12 +720,14 @@ mod tests {
         }
     }
 
-    fn fit(threads: usize, memory: u64) -> Option<Conditions> {
-        Some(Conditions {
+    /// A record taken on a machine that passed, wrapped by the caller so that the tests below read
+    /// `Some(fit(..))` against the `None` the version before this field wrote.
+    fn fit(threads: usize, memory: u64) -> Conditions {
+        Conditions {
             refused: None,
             threads,
             memory,
-        })
+        }
     }
 
     fn named(count: usize) -> Vec<PathBuf> {
@@ -744,7 +746,7 @@ mod tests {
             threads: 32,
             memory: 6 << 30,
         });
-        let records = [record(fit(32, 6 << 30)), record(unfit)];
+        let records = [record(Some(fit(32, 6 << 30))), record(unfit)];
         let error = conditions(&named(2), &records, false)
             .expect_err("one of them was taken on an unfit machine");
         assert!(error.to_string().contains("failed its gates"), "{error}");
@@ -768,7 +770,10 @@ mod tests {
     fn records_given_different_machines_are_not_one_run() {
         // Same environment hash, both fit, and still not comparable: a shared machine factor across
         // two drivers only means anything if both were given the same machine to run on.
-        let records = [record(fit(32, 12 << 30)), record(fit(32, 6 << 30))];
+        let records = [
+            record(Some(fit(32, 12 << 30))),
+            record(Some(fit(32, 6 << 30))),
+        ];
         let error = conditions(&named(2), &records, false)
             .expect_err("one got twice the memory budget of the other");
         assert!(
@@ -776,13 +781,19 @@ mod tests {
             "{error}"
         );
 
-        let threads = [record(fit(32, 12 << 30)), record(fit(16, 12 << 30))];
+        let threads = [
+            record(Some(fit(32, 12 << 30))),
+            record(Some(fit(16, 12 << 30))),
+        ];
         conditions(&named(2), &threads, false).expect_err("and one got half the threads");
     }
 
     #[test]
     fn a_fit_run_of_one_machine_grades_without_complaint() {
-        let records = [record(fit(32, 12 << 30)), record(fit(32, 12 << 30))];
+        let records = [
+            record(Some(fit(32, 12 << 30))),
+            record(Some(fit(32, 12 << 30))),
+        ];
         conditions(&named(2), &records, false).expect("both passed and both got the same machine");
     }
 }

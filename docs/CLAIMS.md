@@ -12,6 +12,24 @@ A claim gets an identifier when it is registered, and the identifier is what oth
 
 **Verdict** is recorded whichever way it goes. A claim that fails its own threshold stays on this page with the failure written out.
 
+## The five verdicts
+
+REPRODUCED, REPRODUCED-WITH-CAVEAT, NOT-REPRODUCED, NOT-ATTEMPTABLE, PENDING. The set is closed and the spelling is fixed, and that is the only reason it is worth having. A vocabulary somebody can extend grows a gentler word every time a result comes out badly, and the gentler word is the one that gets quoted.
+
+The three that follow from a measurement are not chosen by a person. `bench_store::claim` takes the reading, the threshold and what the instrument can resolve, and returns the word, so the wording of a result is arithmetic rather than a decision made after seeing the number. A reading outside the bar is NOT-REPRODUCED whatever else was true about the run: a caveat can turn a REPRODUCED into a REPRODUCED-WITH-CAVEAT and it can never turn a loss into anything softer.
+
+NOT-ATTEMPTABLE is a fact about our circumstances and is worded that way. It is not a criticism of anyone's work. Two things reach it. One is an artifact that cannot be obtained or cannot be run here, which has to carry a citation saying where it was looked for, because an unsupported assertion that something was unavailable is not better than no entry at all. The other is a bar narrower than what our instrument can resolve, where the honest answer is that this harness cannot settle the question either way. C0002 below is the second kind at one of its spans.
+
+What is not a verdict is a claim whose instrument nobody has written yet. That is a gap in this repository's work, and giving it a word would put a finished looking row on a page for something that was never attempted, so `iris-bench reproduce` errors on it instead.
+
+## Running one
+
+`iris-bench reproduce C0002` reads the registration, runs what it names, and prints the word with the arithmetic that produced it. Unlike the gates it exits zero on every verdict, because a failed reproduction is a result rather than a broken build.
+
+The registrations it reads are committed files under `crates/bench-store/claims/`, one per claim, and they are the registration rather than a copy of it. The threshold in front of a reader is the one in version control, and the tool refuses to grade a reading taken before the day its own threshold was registered.
+
+C0001 is not among them. It registered three bands rather than one bar, and the registry models a single threshold and a single reading, so retrofitting a word onto it would mean inventing a reading it never had. It stays prose until the registry can hold the shape it was actually registered in.
+
 ## This file is maintained by hand, for now
 
 It should be generated from the results store, and it is not, because the store is a stub. A ledger somebody edits drifts within weeks and it drifts in the flattering direction without anybody deciding to do that, which is why replacing this file with a generated one is issue #27 rather than a nice to have. Until then the entries are written out longhand and each one names the artifact its numbers came from, so the drift is at least checkable against something.
@@ -47,7 +65,7 @@ The four rows agree on the band and on which shape decides it, which is the thin
 
 ### C0002, what the sliding window costs on a file that is already resident
 
-**Status** measured, and the threshold is not decidable with the instrument that exists. **Purpose** confirmatory. **Registered** 2026-09-04, in `tamnd/iris` issue #26 and in the M4 checklist of that repository. **Measured** 2026-09-06.
+**Status** measured. **Purpose** confirmatory. **Registered** 2026-09-04, in `tamnd/iris` issue #26 and in the M4 checklist of that repository, and carried as `crates/bench-store/claims/C0002.toml` so that `iris-bench reproduce C0002` runs it. **Measured** 2026-09-06.
 
 **Threshold**, committed in advance: a scan of a resident local file through the windowed path stays within three percent of a scan of the same bytes handed over as one buffer. There is no band structure here. Either the abstraction is free on the easy case or hosts will keep a second code path for resident files, which is the outcome the whole source design exists to avoid.
 
@@ -55,7 +73,7 @@ The four rows agree on the band and on which shape decides it, which is the thin
 
 **Machine class.** The i9-13900K under Linux, pinned, which is the only machine in the fleet whose noise floor in `MACHINES.md` sits under three percent. Ratios only, taken inside one run, which is what this claim is.
 
-**Verdict.** Not held at the span iris ships, and not decidable at any span, for two separate reasons that are worth keeping apart.
+**Verdict.** NOT-REPRODUCED at the span iris ships, and NOT-ATTEMPTABLE at a span that holds the file, for two separate reasons that are worth keeping apart.
 
 At the four mebibyte span that `iris_source::DEFAULT_SPAN` sets, a 256 mebibyte scan runs at 143.51% of the buffer path, interval 142.63% to 144.42%. At a span that holds the whole file it runs at 96.72%, interval 96.46% to 97.11%. That is a large effect and its cause is not the abstraction.
 

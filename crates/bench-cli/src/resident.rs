@@ -167,23 +167,60 @@ fn scan<S: RangeSource>(source: &mut S, chunk: usize) -> anyhow::Result<u64> {
     Ok(sum)
 }
 
-/// Runs the gate.
+/// How one run of the comparison was set up.
+///
+/// A struct rather than a row of arguments because `reproduce` builds one of these from a
+/// registered claim and this command builds one from the command line, and the two should be
+/// handing the measurement the same thing.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Setup {
+    /// How large a file to scan, in bytes.
+    pub(crate) size: u64,
+    /// How much address space the window reserves, in bytes.
+    pub(crate) span: usize,
+    /// How large each range a scan asks for is, in bytes.
+    pub(crate) chunk: usize,
+    /// How many pairs of measurements to take.
+    pub(crate) pairs: u32,
+    /// Compare the buffer against a second buffer, which measures this command's own bias.
+    pub(crate) control: bool,
+}
+
+/// What one run of the comparison was, and what it came to.
+#[derive(Debug)]
+pub(crate) struct Measurement {
+    /// The machine, read before anything was timed.
+    pub(crate) capture: Capture,
+    /// The windowed path over the whole buffer path, with its interval.
+    pub(crate) ratio: Ratio,
+    /// How it was set up.
+    setup: Setup,
+    /// The windowed side on its own.
+    windowed: Summary,
+    /// The buffered side on its own.
+    buffered: Summary,
+    /// How many times the window moved per scan.
+    slides: u64,
+}
+
+/// Runs the comparison and returns what it came to, without deciding anything about it.
+///
+/// Separate from [`gate`] because a gate and a registered claim want different things from the same
+/// numbers. The gate exits non zero when the bar is missed, and `reproduce` records a verdict
+/// either way, so the part that decides is above this rather than inside it.
 ///
 /// # Errors
 ///
 /// If the machine is not fit to produce a ratio and `anyway` was not asked for, if the file cannot
-/// be written or opened, or if the measured interval does not clear `bar`.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn gate(
-    size: u64,
-    span: usize,
-    chunk: usize,
-    pairs: u32,
-    warmup: u32,
-    bar: f64,
-    anyway: bool,
-    control: bool,
-) -> anyhow::Result<()> {
+/// be written or opened, or if there are not enough pairs to compare.
+pub(crate) fn measure(setup: Setup, warmup: u32, anyway: bool) -> anyhow::Result<Measurement> {
+    let Setup {
+        size,
+        span,
+        chunk,
+        pairs,
+        control,
+    } = setup;
     if chunk > span && !control {
         bail!(
             "a chunk of {chunk} bytes cannot be served by a window with a span of {span}, so this \
@@ -259,19 +296,46 @@ pub(crate) fn gate(
     let window_summary = summarise(&windowed, Bootstrap::default()).expect("at least one pair");
     let buffer_summary = summarise(&buffered, Bootstrap::default()).expect("at least one pair");
 
-    report(
-        &capture,
-        size,
-        span,
-        chunk,
-        pairs,
-        &window_summary,
-        &buffer_summary,
-        &ratio,
-        bar,
-        (left.slides() - before_slides) / u64::from(pairs),
-        control,
-    );
+    Ok(Measurement {
+        capture,
+        ratio,
+        setup,
+        windowed: window_summary,
+        buffered: buffer_summary,
+        slides: (left.slides() - before_slides) / u64::from(pairs),
+    })
+}
+
+/// Runs the gate.
+///
+/// # Errors
+///
+/// If the measurement cannot be taken, or if the measured interval does not clear `bar`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn gate(
+    size: u64,
+    span: usize,
+    chunk: usize,
+    pairs: u32,
+    warmup: u32,
+    bar: f64,
+    anyway: bool,
+    control: bool,
+) -> anyhow::Result<()> {
+    let measurement = measure(
+        Setup {
+            size,
+            span,
+            chunk,
+            pairs,
+            control,
+        },
+        warmup,
+        anyway,
+    )?;
+    let ratio = &measurement.ratio;
+
+    report(&measurement, bar);
 
     if anyway {
         println!();
@@ -318,20 +382,24 @@ pub(crate) fn gate(
 }
 
 /// Prints what was measured.
-#[allow(clippy::too_many_arguments)]
-fn report(
-    capture: &Capture,
-    size: u64,
-    span: usize,
-    chunk: usize,
-    pairs: u32,
-    windowed: &Summary,
-    buffered: &Summary,
-    ratio: &Ratio,
-    bar: f64,
-    slides: u64,
-    control: bool,
-) {
+fn report(measurement: &Measurement, bar: f64) {
+    let Measurement {
+        capture,
+        ratio,
+        setup:
+            Setup {
+                size,
+                span,
+                chunk,
+                pairs,
+                control,
+            },
+        windowed,
+        buffered,
+        slides,
+    } = measurement;
+    let (size, span, chunk, pairs, slides) = (*size, *span, *chunk, *pairs, *slides);
+    let control = *control;
     let mib = 1024 * 1024;
     println!("{}", capture.class);
     println!("environment {}", capture.hash);
@@ -468,7 +536,7 @@ mod tests {
 
     #[test]
     fn a_window_smaller_than_a_chunk_is_refused_before_anything_is_measured() {
-        let error = gate(1024 * 1024, 4096, 8192, 1, 0, 0.03, true, false).unwrap_err();
+        let error = measure(refusable(false), 0, true).unwrap_err();
         assert!(format!("{error}").contains("cannot be served by a window"));
     }
 
@@ -477,8 +545,24 @@ mod tests {
         // The span is what the window reserves and a control run does not open one, so refusing a
         // control because of a span it will never use would be refusing the one run that answers
         // whether the refusal was worth listening to.
-        let outcome = gate(1024 * 1024, 4096, 8192, 2, 0, 1.0, true, true);
+        //
+        // This asks `measure` rather than `gate` on purpose. What is under test is whether the run
+        // is refused before it starts, and going through `gate` would also put the result up
+        // against a bar, which on a shared machine is a question about that machine rather than
+        // about the refusal.
+        let outcome = measure(refusable(true), 0, true);
         assert!(outcome.is_ok(), "{outcome:?}");
+    }
+
+    /// A setup whose chunk is larger than its span, which is the shape the refusal is about.
+    fn refusable(control: bool) -> Setup {
+        Setup {
+            size: 1024 * 1024,
+            span: 4096,
+            chunk: 8192,
+            pairs: 2,
+            control,
+        }
     }
 
     #[test]

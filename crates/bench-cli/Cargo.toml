@@ -25,6 +25,7 @@ bench-store.workspace = true
 bench-workload.workspace = true
 clap.workspace = true
 iris-source.workspace = true
+jiff.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
