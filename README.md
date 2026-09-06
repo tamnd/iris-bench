@@ -32,7 +32,7 @@ Public BI has been both the design input and the evaluation set for six years of
 
 Pre-alpha. B0 is done as of `v0.1.0` and B1 as of `v0.2.0`, so the measuring apparatus and the data exist and the benchmarks do not. Milestones B0 through B8 are [public](https://github.com/tamnd/iris-bench/milestones) with one issue per exit gate.
 
-What B0 established is in `docs/ROADMAP.md` under that milestone, and the short version is that this fleet can measure, on one machine, for ratios always and for durations under a gate. The noise floor is 1.05% on the one eligible role and over two percent everywhere else, and the harness adds 41.1 ns to a sample, which is under one percent of anything longer than 4.1 microseconds. `iris-bench check`, `noise`, `overhead`, `resident`, `corpus` and `clickbench` run today. Nothing else does.
+What B0 established is in `docs/ROADMAP.md` under that milestone, and the short version is that this fleet can measure, on one machine, for ratios always and for durations under a gate. The noise floor is 1.05% on the one eligible role and over two percent everywhere else, and the harness adds 41.1 ns to a sample, which is under one percent of anything longer than 4.1 microseconds. `iris-bench check`, `noise`, `overhead`, `resident`, `corpus`, `clickbench` and `reproduce` run today. Nothing else does.
 
 B1 is done and is the corpora. ClickBench, TPC-H at scale factor 1 and 20, Public BI in both the full 206 table set and the 36 table subset, and Silesia and enwik8 are pinned and reproduce, some by download, the TPC-H pair from `dbgen`, and the last two from a mirror because their original hosting has moved more than once. Every one of them was fetched or generated end to end through the real command rather than checked on paper, which is 43 GB of Public BI and 22 GB of TPC-H among other things.
 
@@ -117,6 +117,20 @@ cargo run --release -p iris-bench-cli -- clickbench calibrate duckdb.json datafu
 ClickBench publishes the numbers behind every row of its leaderboard, and this carries the DuckDB and DataFusion files for c6a.4xlarge with their address and their digest. The machine here is not that machine, so the comparison is not against any particular ratio. A faster machine moves every query on every system by about one factor, so each driver gets its own ratio against the published numbers, the machine factor is the geometric mean of those ratios, and a driver more than 25 percent away from the shared factor is reported as misconfigured along with the queries that put it there. What that cannot catch is a mistake that slows everything here equally, which looks exactly like a slower machine, and the crate says so rather than leaving it to be discovered.
 
 All of that rests on the run being a fair measurement of the machine it was taken on, so the record now carries whether the machine passed its gates, what overrode them when it did not, and how many threads and how much memory each system was given. Calibration refuses to grade a run that did not pass, because a busy machine is not one factor the arithmetic divides out: another tenant competing for memory bandwidth slows the queries that stream and leaves the rest alone, which is the same shape a misconfigured driver makes. It also refuses records that were given different budgets, since a shared machine factor across two drivers means something only if both ran on the same machine. Passing `--anyway` prints the table with all of that said on it, which is for looking rather than for publishing.
+
+## Claims
+
+A claim this project intends to make is registered before it is run, with the threshold that decides it, and `docs/CLAIMS.md` is that ledger. The registrations are committed files under `crates/bench-store/claims/`, one per claim, and running one is one command.
+
+```
+cargo run --release -p iris-bench-cli -- reproduce C0002
+```
+
+It emits one of five words and there is no sixth: REPRODUCED, REPRODUCED-WITH-CAVEAT, NOT-REPRODUCED, NOT-ATTEMPTABLE, PENDING. The three that follow from a measurement are arithmetic over the reading, the threshold and what the instrument can resolve, rather than a word somebody picks after seeing the number. A reading outside the bar is NOT-REPRODUCED whatever else was true about the run, and the only thing a caveat does is turn a pass into a pass with the condition next to it.
+
+NOT-ATTEMPTABLE covers two situations and both are facts about our circumstances rather than criticism of anybody's work. One is an artifact that cannot be obtained or cannot be run here, which has to carry a citation saying where it was looked for. The other is a bar narrower than what our instrument can resolve, and it is why a claim settled by a comparison runs its own control in the same session. A harness that cannot put two copies of one buffer closer than nine percent has no business reporting that two different things are three percent apart, so a reading that close to its bar is recorded as undecided and the bar is not widened to a number the instrument happens to clear.
+
+Unlike the gates this exits zero on every verdict, because a failed reproduction is a result. What it refuses is a claim nobody registered, a reading taken before the day its own threshold was written down, and a claim whose instrument nobody has built yet, since work that was never attempted is a gap here rather than a verdict.
 
 ## Machines
 

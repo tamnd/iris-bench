@@ -1,12 +1,13 @@
 //! `iris-bench`, the command line tool.
 //!
-//! Only `check`, `clickbench`, `corpus`, `noise`, `overhead` and `resident` are implemented. See
-//! `docs/ROADMAP.md` for the rest.
+//! Only `check`, `clickbench`, `corpus`, `noise`, `overhead`, `reproduce` and `resident` are
+//! implemented. See `docs/ROADMAP.md` for the rest.
 
 mod clickbench;
 mod corpus;
 mod noise;
 mod overhead;
+mod reproduce;
 mod resident;
 
 use std::path::PathBuf;
@@ -173,10 +174,21 @@ enum Command {
         /// Path to a run manifest.
         manifest: String,
     },
-    /// Re-run a published reproduction target and record a verdict.
+    /// Run a registered claim and record which of the five verdicts it came to.
+    ///
+    /// Unlike the gates, this exits zero whichever word it lands on, because a failed reproduction
+    /// is a result rather than a broken build. It exits non zero when it cannot produce a verdict
+    /// at all.
     Reproduce {
-        /// Target identifier, for example `f3` or `alp`.
+        /// Claim identifier, as `docs/CLAIMS.md` cites it, for example `C0002`.
         target: String,
+        /// Measure even though the machine failed its gates. The verdict then carries a caveat, and
+        /// a caveat never turns a failure into anything softer.
+        #[arg(long)]
+        anyway: bool,
+        /// Where to write the verdict and everything it was drawn from.
+        #[arg(long, value_name = "PATH")]
+        out: Option<PathBuf>,
     },
     /// Render the store.
     Report,
@@ -475,6 +487,11 @@ fn main() -> anyhow::Result<()> {
             generator,
             scratch,
         } => corpus::run(&name, root, store, generator.as_deref(), scratch),
+        Command::Reproduce {
+            target,
+            anyway,
+            out,
+        } => reproduce::run(&target, anyway, out),
         other => anyhow::bail!("not implemented yet: {other:?}"),
     }
 }
