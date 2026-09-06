@@ -50,12 +50,45 @@ pub(crate) struct Record {
     /// builds no table.
     #[serde(default)]
     pub(crate) setup: Option<bench_workload::Source>,
+    /// What the run was allowed and what it was given.
+    ///
+    /// `None` means the record was written before this field existed, so nothing is known about the
+    /// conditions rather than nothing being wrong with them. `calibrate` treats the two the same,
+    /// which is the only safe reading: a record that does not say it passed its gates has not said
+    /// it passed its gates.
+    #[serde(default)]
+    pub(crate) conditions: Option<Conditions>,
     /// How long the system took to start, in nanoseconds.
     pub(crate) prepare_nanoseconds: f64,
     /// How long the system took to take the table, in nanoseconds.
     pub(crate) load_nanoseconds: f64,
     /// The schedule and the per query results.
     pub(crate) scheduled: Scheduled,
+}
+
+/// What a run was allowed and what it was given.
+///
+/// The gate result belongs in the record rather than only on the terminal that watched the run. A
+/// line of output saying the machine was unfit is gone by the time somebody reads the JSON a week
+/// later, and the number is still there, which is the wrong way round.
+#[derive(Clone, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Conditions {
+    /// Why the machine was not entitled to produce absolute durations, if it was not.
+    ///
+    /// `None` means the gates passed. A string here means `--anyway` was used and this is what was
+    /// overridden, carried whole so that a reader gets the gate rather than the fact of a failure.
+    pub(crate) refused: Option<String>,
+    /// How many threads the system was told it could use.
+    pub(crate) threads: usize,
+    /// How many bytes of memory budget it was told it had.
+    pub(crate) memory: u64,
+}
+
+impl Conditions {
+    /// Whether the machine passed the gates that absolute durations need.
+    fn eligible(&self) -> bool {
+        self.refused.is_none()
+    }
 }
 
 /// Which bytes were measured.
@@ -90,9 +123,11 @@ pub(crate) fn run(
     // ClickBench numbers are absolute durations, so this is the strict permit. Refusing by default
     // is the point: a number taken on a machine that failed its own gates is a number somebody will
     // put in a table anyway unless the tool stops them.
+    let mut refused = None;
     if let Err(error) = capture.require(Permit::Durations) {
         if anyway {
             println!("running anyway on a machine that is only good for ratios: {error}");
+            refused = Some(error.to_string());
         } else {
             return Err(error).context("run with --anyway to measure regardless");
         }
@@ -174,6 +209,11 @@ pub(crate) fn run(
             bytes,
         },
         setup,
+        conditions: Some(Conditions {
+            refused,
+            threads,
+            memory,
+        }),
         prepare_nanoseconds,
         load_nanoseconds,
         scheduled,
@@ -324,7 +364,10 @@ pub(crate) fn check(paths: &[PathBuf]) -> anyhow::Result<()> {
         } else {
             ""
         };
-        println!("{} disagreed with itself on {}{note}", one.driver, one.query);
+        println!(
+            "{} disagreed with itself on {}{note}",
+            one.driver, one.query
+        );
     }
     if !comparison.alone.is_empty() {
         println!(
@@ -364,7 +407,19 @@ pub(crate) fn check(paths: &[PathBuf]) -> anyhow::Result<()> {
 /// used and the only way to tell a misconfigured driver from a slower machine is to see whether the
 /// other drivers moved with it. `bench_workload::leaderboard` holds the published numbers and does
 /// the arithmetic; this prints it.
-pub(crate) fn calibrate(paths: &[PathBuf], column: Column) -> anyhow::Result<()> {
+///
+/// # What it refuses
+///
+/// Everything this command says rests on the run being a fair measurement of the machine it was
+/// taken on. On a machine that failed its gates it is not, and the failure is not a uniform factor
+/// the arithmetic divides out: another tenant competing for memory bandwidth slows the queries that
+/// stream and leaves the ones that do not alone, which is the exact shape a misconfigured driver
+/// makes. Reading a verdict out of that would be reporting a busy machine as a broken engine.
+///
+/// So the gate result is now in the record, and this refuses to grade a run that did not pass. It
+/// also refuses records that disagree about the thread count or the memory budget, because those
+/// are one run of a fleet only if every driver was given the same machine.
+pub(crate) fn calibrate(paths: &[PathBuf], column: Column, anyway: bool) -> anyhow::Result<()> {
     let records = read(paths)?;
     let environments: Vec<&str> = records
         .iter()
@@ -375,6 +430,7 @@ pub(crate) fn calibrate(paths: &[PathBuf], column: Column) -> anyhow::Result<()>
         "these records are from different environments, and a machine factor estimated across two \
          machines is not a machine factor"
     );
+    conditions(paths, &records, anyway)?;
     if column == Column::Cold && !records.iter().all(was_cold) {
         println!("the page cache was not dropped everywhere, so the cold column is not cold here");
     }
@@ -433,6 +489,64 @@ pub(crate) fn calibrate(paths: &[PathBuf], column: Column) -> anyhow::Result<()>
 
     anyhow::ensure!(calibration.clean(), "a driver is outside the band");
     println!("every driver with a published result is inside the band");
+    Ok(())
+}
+
+/// Checks that these records are one run of one fit machine, and prints what it was given.
+///
+/// Three separate things, and only the first is a judgement about the machine. The other two are
+/// about whether the records go together at all, which has to hold before any of the arithmetic
+/// downstream means anything.
+fn conditions(paths: &[PathBuf], records: &[Record], anyway: bool) -> anyhow::Result<()> {
+    let unfit: Vec<String> = paths
+        .iter()
+        .zip(records)
+        .filter_map(|(path, record)| {
+            let name = path.display();
+            match &record.conditions {
+                None => Some(format!("{name} does not say what it was taken under")),
+                Some(one) => one
+                    .refused
+                    .as_ref()
+                    .map(|why| format!("{name} was taken with --anyway: {why}")),
+            }
+        })
+        .collect();
+    if !unfit.is_empty() {
+        for one in &unfit {
+            println!("{one}");
+        }
+        anyhow::ensure!(
+            anyway,
+            "a run taken on a machine that failed its gates cannot be graded against the \
+             leaderboard, because the failure is not a factor this arithmetic divides out; pass \
+             --anyway to print the table with that said on it"
+        );
+        println!(
+            "grading it anyway, so nothing below is a finding about any engine and none of it \
+             belongs in a table"
+        );
+    }
+
+    let given: Vec<&Conditions> = records
+        .iter()
+        .filter_map(|record| record.conditions.as_ref())
+        .filter(|one| one.eligible() || anyway)
+        .collect();
+    if let Some(first) = given.first() {
+        anyhow::ensure!(
+            given
+                .iter()
+                .all(|one| one.threads == first.threads && one.memory == first.memory),
+            "these records were not given the same machine, so a shared factor across them would \
+             be an average of two different machines"
+        );
+        println!(
+            "each system was given {} threads and a {:.0} GiB memory budget",
+            first.threads,
+            f64::from(u32::try_from(first.memory >> 20).unwrap_or(u32::MAX)) / 1024.0,
+        );
+    }
     Ok(())
 }
 
@@ -574,5 +688,101 @@ mod tests {
         )
         .expect_err("q43 is one past the end of the workload");
         assert!(error.to_string().contains("no query called q43"), "{error}");
+    }
+
+    /// A record with nothing in it but the conditions, which is all these tests read.
+    fn record(conditions: Option<Conditions>) -> Record {
+        Record {
+            machine: "class B".to_owned(),
+            environment: "0".repeat(64),
+            corpus: Corpus {
+                path: "hits.parquet".to_owned(),
+                bytes: 1,
+            },
+            setup: None,
+            conditions,
+            prepare_nanoseconds: 1.0,
+            load_nanoseconds: 1.0,
+            scheduled: Scheduled {
+                schedule: Schedule::identity(0),
+                report: bench_workload::Report {
+                    driver: "duckdb".to_owned(),
+                    version: "1".to_owned(),
+                    workload: "clickbench".to_owned(),
+                    source: bench_workload::Source {
+                        url: "https://example.invalid/queries.sql".to_owned(),
+                        fetched: "2026-09-06".to_owned(),
+                        blake3: "0".repeat(64),
+                    },
+                    queries: Vec::new(),
+                },
+            },
+        }
+    }
+
+    fn fit(threads: usize, memory: u64) -> Option<Conditions> {
+        Some(Conditions {
+            refused: None,
+            threads,
+            memory,
+        })
+    }
+
+    fn named(count: usize) -> Vec<PathBuf> {
+        (0..count)
+            .map(|at| PathBuf::from(format!("{at}.json")))
+            .collect()
+    }
+
+    #[test]
+    fn a_run_taken_on_a_machine_that_failed_its_gates_is_not_graded() {
+        // The whole point of the change. The gate result used to exist only on the terminal that
+        // watched the run, so a record taken with --anyway looked exactly like one taken on an idle
+        // machine by the time anybody read it back.
+        let unfit = Some(Conditions {
+            refused: Some("load average 25.28 against a limit of 6.40".to_owned()),
+            threads: 32,
+            memory: 6 << 30,
+        });
+        let records = [record(fit(32, 6 << 30)), record(unfit)];
+        let error = conditions(&named(2), &records, false)
+            .expect_err("one of them was taken on an unfit machine");
+        assert!(error.to_string().contains("failed its gates"), "{error}");
+
+        // And it is gradeable on purpose, because looking at a bad run is a reasonable thing to
+        // want as long as the output says what it is.
+        conditions(&named(2), &records, true).expect("--anyway grades it and says so");
+    }
+
+    #[test]
+    fn a_record_that_does_not_say_what_it_was_taken_under_is_treated_as_unfit() {
+        // Records written before the field existed. Unknown and failed are the same thing here,
+        // because a record that does not claim it passed its gates has not passed its gates.
+        let records = [record(None)];
+        let error =
+            conditions(&named(1), &records, false).expect_err("it says nothing about its gates");
+        assert!(error.to_string().contains("failed its gates"), "{error}");
+    }
+
+    #[test]
+    fn records_given_different_machines_are_not_one_run() {
+        // Same environment hash, both fit, and still not comparable: a shared machine factor across
+        // two drivers only means anything if both were given the same machine to run on.
+        let records = [record(fit(32, 12 << 30)), record(fit(32, 6 << 30))];
+        let error = conditions(&named(2), &records, false)
+            .expect_err("one got twice the memory budget of the other");
+        assert!(
+            error.to_string().contains("not given the same machine"),
+            "{error}"
+        );
+
+        let threads = [record(fit(32, 12 << 30)), record(fit(16, 12 << 30))];
+        conditions(&named(2), &threads, false).expect_err("and one got half the threads");
+    }
+
+    #[test]
+    fn a_fit_run_of_one_machine_grades_without_complaint() {
+        let records = [record(fit(32, 12 << 30)), record(fit(32, 12 << 30))];
+        conditions(&named(2), &records, false).expect("both passed and both got the same machine");
     }
 }

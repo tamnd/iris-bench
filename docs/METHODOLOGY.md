@@ -8,6 +8,8 @@ The machine has to pass its eligibility gates. Frequency scaling, turbo, the sta
 
 The environment is captured to a file and hashed, and that hash is in every result row. Two rows with different environment hashes were not taken under the same conditions, and the schema makes that visible instead of leaving it to a reader's memory.
 
+The gate result goes in the record too, not only on the terminal that watched the run. There is an override for measuring on an unfit machine deliberately, and without this the override left no trace: a week later the warning was gone and the number was still there. So a record says whether it passed, what it overrode when it did not, and what the system was given to run with, and the tools downstream refuse to grade a record that does not say it passed. A run whose conditions were not written down is treated as one that failed, because a record which does not claim it passed its gates has not passed them.
+
 ## Repetitions
 
 Kalibera and Jones's real contribution is not "run it more times". It is that variance lives at a particular level, and repetitions should be spent at the level that carries it. A pilot run identifies whether the variance is between builds, between process invocations, or between iterations within a process, and the repetition budget goes there. For a released binary, build to build variance is usually negligible, so one build and more iterations is strictly better than three builds and fewer.
