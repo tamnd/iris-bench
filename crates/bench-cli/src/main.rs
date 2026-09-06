@@ -182,11 +182,12 @@ enum Command {
     Report,
 }
 
-/// The two halves of `clickbench`.
+/// The three parts of `clickbench`.
 ///
 /// Running and comparing are separate because the systems are measured one at a time, often on
 /// different days, and a comparison that could only happen inside a run would be a comparison that
-/// never happened.
+/// never happened. Calibrating is separate from both because it reads every record of a run
+/// together, and a single record cannot tell a misconfiguration apart from a slower machine.
 #[derive(Debug, Subcommand)]
 enum ClickbenchCommand {
     /// Measure one system.
