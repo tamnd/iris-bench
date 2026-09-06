@@ -50,6 +50,9 @@ pub struct Corpus {
     /// What permits redistribution, which only a mirrored corpus needs and must have.
     #[serde(default)]
     pub licence_note: Option<String>,
+    /// The corpus this one is a selection from, for a corpus published in more than one part.
+    #[serde(default)]
+    pub part_of: Option<String>,
 }
 
 /// How this repository handles a corpus, per `docs/LICENSING.md`.
@@ -229,6 +232,59 @@ impl Manifest {
         Ok(manifest)
     }
 
+    /// The one digest that names this exact corpus, contents and all.
+    ///
+    /// Public BI is why this exists. The benchmark is published as 206 tables and much of the
+    /// encoding literature measures a 36 table subset, so a result labelled Public BI is ambiguous
+    /// about which Public BI, and a result labelled with the subset is ambiguous about which 36.
+    /// This is a single value that answers both, small enough to sit in a result row next to the
+    /// name and specific enough that no two selections share one.
+    ///
+    /// Taken over the name and then every entry's path, digest and size, sorted by path, so it does
+    /// not move when entries are reordered in the file and does move when any byte of the corpus
+    /// does. Deliberately not the digest of the manifest text: a comment rewritten is not a
+    /// different corpus, and a result row that changed because somebody fixed a typo would teach
+    /// everybody to ignore the field.
+    #[must_use]
+    pub fn identity(&self) -> Digest {
+        let mut entries: Vec<&Entry> = self.files.iter().collect();
+        entries.sort_by(|left, right| left.path.cmp(&right.path));
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(self.corpus.name.as_bytes());
+        hasher.update(b"\n");
+        for entry in entries {
+            hasher.update(entry.path.as_bytes());
+            hasher.update(b" ");
+            hasher.update(entry.blake3.to_hex().as_bytes());
+            hasher.update(b" ");
+            hasher.update(entry.bytes.to_string().as_bytes());
+            hasher.update(b"\n");
+        }
+        Digest::from_bytes(*hasher.finalize().as_bytes())
+    }
+
+    /// Whether this corpus really is a selection from the one it says it is part of.
+    ///
+    /// A subset is only worth naming if it is provably a subset. Public BI is published as 206
+    /// tables and much of the encoding literature measures 36 of them, and a 36 that has quietly
+    /// drifted from the 206 it names is worse than no subset at all, because every number labelled
+    /// with it is then about something nobody can reconstruct.
+    ///
+    /// Each entry has to be in the whole at the same path with the same digest and the same size,
+    /// and the part has to be smaller. Names are not compared here, so this answers the question
+    /// about the bytes and `part_of` answers the one about intent.
+    #[must_use]
+    pub fn is_part_of(&self, whole: &Self) -> bool {
+        self.files.len() < whole.files.len()
+            && self.files.iter().all(|entry| {
+                whole.files.iter().any(|held| {
+                    held.path == entry.path
+                        && held.blake3 == entry.blake3
+                        && held.bytes == entry.bytes
+                })
+            })
+    }
+
     /// Checks everything about a manifest that parsing does not.
     ///
     /// Parsing gets the shape right. This gets the meaning right, and the difference is that a
@@ -273,6 +329,20 @@ impl Manifest {
             return Err(invalid(
                 "mirrored without a licence note saying what permits it".to_owned(),
             ));
+        }
+
+        // Whether the entries really are a subset needs the other manifest and is checked where
+        // both are in hand, by `ci/discipline.py` over the tree and by `Self::is_part_of` at run
+        // time. What can be settled from one manifest alone is that the claim is not circular.
+        if let Some(whole) = self.corpus.part_of.as_ref() {
+            if whole.trim().is_empty() {
+                return Err(invalid(
+                    "says it is part of a corpus with no name".to_owned(),
+                ));
+            }
+            if whole == &self.corpus.name {
+                return Err(invalid("says it is part of itself".to_owned()));
+            }
         }
 
         // A generated corpus says what produces it and every other kind says where it is downloaded
@@ -433,6 +503,78 @@ mod tests {
             Manifest::parse(&text).unwrap().corpus.category,
             Category::Mirror
         );
+    }
+
+    /// A second file, so identity has something to be order independent about.
+    const SECOND: &str = "\n[[files]]\npath = \"other.parquet\"\nblake3 = \
+                          \"af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3263\"\n\
+                          bytes = 2048\n";
+
+    #[test]
+    fn the_identity_does_not_move_when_entries_are_reordered() {
+        let one = format!("{}{SECOND}", manifest(""));
+        let two = {
+            let base = manifest("");
+            let (head, files) = base.split_at(base.find("[[files]]").unwrap());
+            format!("{head}{}\n{files}", SECOND.trim_start())
+        };
+        assert_eq!(
+            Manifest::parse(&one).unwrap().identity(),
+            Manifest::parse(&two).unwrap().identity()
+        );
+    }
+
+    #[test]
+    fn the_identity_moves_when_the_corpus_does() {
+        let base = Manifest::parse(&manifest("")).unwrap().identity();
+        let more = Manifest::parse(&format!("{}{SECOND}", manifest("")))
+            .unwrap()
+            .identity();
+        assert_ne!(base, more);
+
+        // A different corpus made of the same bytes is a different corpus, because a result row
+        // carrying only the identity still has to say which selection it was.
+        let mut parsed = Manifest::parse(&manifest("")).unwrap();
+        parsed.corpus.name = "example-36".to_owned();
+        assert_ne!(parsed.identity(), base);
+    }
+
+    #[test]
+    fn the_identity_does_not_move_when_a_comment_does() {
+        // Deliberate. A rewritten comment is not a different corpus, and an identity that changed
+        // for one would teach everybody to ignore the field.
+        let commented = format!("# a note somebody added later\n{}", manifest(""));
+        assert_eq!(
+            Manifest::parse(&commented).unwrap().identity(),
+            Manifest::parse(&manifest("")).unwrap().identity()
+        );
+    }
+
+    #[test]
+    fn a_corpus_that_says_it_is_part_of_itself_is_refused() {
+        let text = manifest("part_of = \"example\"");
+        let error = Manifest::parse(&text).unwrap_err();
+        assert!(format!("{error}").contains("part of itself"));
+    }
+
+    #[test]
+    fn a_part_has_to_be_some_of_the_whole_and_not_just_smaller() {
+        let whole = Manifest::parse(&format!("{}{SECOND}", manifest(""))).unwrap();
+        let part = Manifest::parse(&manifest("part_of = \"bigger\"")).unwrap();
+        assert!(part.is_part_of(&whole));
+
+        // Same path, different bytes. This is the drift the check exists for, and it is the one
+        // that looks fine in a diff because the path is what a reader compares.
+        let moved =
+            Manifest::parse(&manifest("part_of = \"bigger\"").replace("1024", "2048")).unwrap();
+        assert!(!moved.is_part_of(&whole));
+    }
+
+    #[test]
+    fn a_part_the_same_size_as_the_whole_is_not_a_part() {
+        let whole = Manifest::parse(&manifest("")).unwrap();
+        let part = Manifest::parse(&manifest("part_of = \"bigger\"")).unwrap();
+        assert!(!part.is_part_of(&whole));
     }
 
     /// A generate manifest, which needs a different source and a generator to go with it.

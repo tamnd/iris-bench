@@ -1,0 +1,203 @@
+# The 36 table Public BI subset, which is what much of the encoding literature actually measures.
+# Without it those results cannot be reproduced at all, and with it labelled as plain Public BI they
+# would be compared against numbers over the full 206 tables, which measure different data.
+#
+# The 36 are one table per workbook for 36 of the 46 workbooks, as listed in FastLanes at
+# data/include/data/public_bi.hpp. Nine of the ten workbooks left out are second or third variants
+# of a workbook that is already in, and IUBLibrary is the one that is not, so the selection is not a
+# rule that can be recomputed and is pinned here table by table instead.
+#
+# TrainsUK1 contributes its second table rather than its first. That is what the published list
+# says, it is the sort of detail that gets tidied up by somebody being helpful, and tidying it up
+# would silently change what every number labelled with this subset was measured over.
+#
+# part_of makes the claim checkable. CI reads both manifests and refuses a table here that is not in
+# public-bi at the same digest and the same size, so this cannot drift from the set it names.
+
+[corpus]
+name = "public-bi-36"
+description = "The 36 table Public BI subset the encoding literature measures, one table per workbook"
+source = "https://event.cwi.nl/da/PublicBIbenchmark/"
+licence = "Tableau Public workbook data, redistribution not asserted"
+category = "fetch"
+part_of = "public-bi"
+
+[[files]]
+path = "Arade/Arade_1.csv.bz2"
+blake3 = "0f648d1daacd26a97367e6b71bf9e1c298c91470c72326608c008b46b5c59e77"
+bytes = 162560322
+
+[[files]]
+path = "Bimbo/Bimbo_1.csv.bz2"
+blake3 = "1b84b0b206e4ea7124d98404535a43069731bcb4138daa3cae37d653de57a67c"
+bytes = 394724736
+
+[[files]]
+path = "CMSprovider/CMSprovider_1.csv.bz2"
+blake3 = "bf2af1ebf2cfc9aa1a00d7180357f8537e121db2f32b7192bc521468ba28a2cb"
+bytes = 321093709
+
+[[files]]
+path = "CityMaxCapita/CityMaxCapita_1.csv.bz2"
+blake3 = "f800c62d43ef5cf3268e7b13c1ab34202091a6dc7ab2a5284939930a37e8e303"
+bytes = 87308542
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_1.csv.bz2"
+blake3 = "e98da8ebda28958df4507cf416b65b03ec99f8b6dbc62ba4ddba7fb56c5298c7"
+bytes = 378224148
+
+[[files]]
+path = "Corporations/Corporations_1.csv.bz2"
+blake3 = "f6dc3d0c410fb88dab33120d155776ecb507cc983044b109adfb8ac66174518e"
+bytes = 37406370
+
+[[files]]
+path = "Eixo/Eixo_1.csv.bz2"
+blake3 = "f10c05dc05644d01dd513706b1a1f8002df4f41151ee3fcac069ca5d0beec24d"
+bytes = 403957418
+
+[[files]]
+path = "Euro2016/Euro2016_1.csv.bz2"
+blake3 = "b9856f8e6132ab1be732f6a01888331d3d87aaabc437666d19449140992282b9"
+bytes = 97474419
+
+[[files]]
+path = "Food/Food_1.csv.bz2"
+blake3 = "6b124fed148898880e65d628328a0495c4b92c045bae60dd764d16098c0ac4e3"
+bytes = 38466097
+
+[[files]]
+path = "Generico/Generico_1.csv.bz2"
+blake3 = "14fcb889336e6d795b4fa17d9bf18101f0fa7e6778cbfd5acf2ec10ef304eb16"
+bytes = 588230250
+
+[[files]]
+path = "HashTags/HashTags_1.csv.bz2"
+blake3 = "552d124c40a80388e44ec787534258e8b78d62be2b694495cb1c5c9ab48a4f61"
+bytes = 98582105
+
+[[files]]
+path = "Hatred/Hatred_1.csv.bz2"
+blake3 = "5f89285f6deabbe6d7a9d4dc81453532bee3d3863fd7e77f334e01e58d1b619e"
+bytes = 86463927
+
+[[files]]
+path = "IGlocations1/IGlocations1_1.csv.bz2"
+blake3 = "d70c5cff36b36b0581bca97917af50589c27a818d911df31a13c93437ff27f64"
+bytes = 1586852
+
+[[files]]
+path = "MLB/MLB_1.csv.bz2"
+blake3 = "c591279ef8281341083e34c101d9d03bebf08f767129ade51a4d8c6a01451972"
+bytes = 2657601
+
+[[files]]
+path = "MedPayment1/MedPayment1_1.csv.bz2"
+blake3 = "36efef347c7094c737a29a0762b497225285b5dead5b7700ce5e498e33fc05dd"
+bytes = 324099266
+
+[[files]]
+path = "Medicare1/Medicare1_1.csv.bz2"
+blake3 = "ad1d5cd68705ddf857ad64fe83a83d1d708de7f9d02d9a573789f8bad741abab"
+bytes = 360397215
+
+[[files]]
+path = "Motos/Motos_1.csv.bz2"
+blake3 = "0b0496a2fab1cb8da5da76a840d8b6d957ca96b9c961f9354b2757860082be56"
+bytes = 398792220
+
+[[files]]
+path = "MulheresMil/MulheresMil_1.csv.bz2"
+blake3 = "e7c73854f5b5553841fd22dbeec35b1ce5e71a509bc4bab3a056721f0af74225"
+bytes = 406006611
+
+[[files]]
+path = "NYC/NYC_1.csv.bz2"
+blake3 = "197d6eaf0f80ff2dd4597dee5612431be0237769d7384a6bc817c083ef401fe3"
+bytes = 358999365
+
+[[files]]
+path = "PanCreactomy1/PanCreactomy1_1.csv.bz2"
+blake3 = "47e9fa48cfa739cd2118a7dea7049283b6fd1e063f79f8ed367e85236ab6f5a0"
+bytes = 338973914
+
+[[files]]
+path = "Physicians/Physicians_1.csv.bz2"
+blake3 = "0f141192615f17ebd5e397c7b3a86732157754ec11ef3069efa70da55458f1da"
+bytes = 323986936
+
+[[files]]
+path = "Provider/Provider_1.csv.bz2"
+blake3 = "0f2217a36e3eba9430efb3ca588abf93042e8f4f5ec87f97c1ed24ac78f91447"
+bytes = 323342180
+
+[[files]]
+path = "RealEstate1/RealEstate1_1.csv.bz2"
+blake3 = "1e79cddfc4ea35b55d3187f12c2441d0b5a2996417ca9bc76fb52d92cd2927b4"
+bytes = 1112896530
+
+[[files]]
+path = "Redfin1/Redfin1_1.csv.bz2"
+blake3 = "cfa31d04ef3bbd21d6c350f65f414f095ed280cb47ca7653aded8df31791f538"
+bytes = 369564432
+
+[[files]]
+path = "Rentabilidad/Rentabilidad_1.csv.bz2"
+blake3 = "ccc3e367c0178507c37baed0e1dcf71609c81a8b0f8a9aa2ff1c53a8971f6b5a"
+bytes = 74010404
+
+[[files]]
+path = "Romance/Romance_1.csv.bz2"
+blake3 = "9feec1328260bfc822d5d57276e80d6b19e802e72b840e53d885a92180fbcf58"
+bytes = 134950511
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_1.csv.bz2"
+blake3 = "9cfde096030132e4c17c73ac4202d0849123d0d30a75e28162f19e9fa8b82f88"
+bytes = 194093473
+
+[[files]]
+path = "TableroSistemaPenal/TableroSistemaPenal_1.csv.bz2"
+blake3 = "94478bc1f15bd34d6782b4d8fda2fcbfd77f7aba7e88462bd8b0680b94e20b13"
+bytes = 17463053
+
+[[files]]
+path = "Taxpayer/Taxpayer_1.csv.bz2"
+blake3 = "10ef09b3c3dc3826a0239a42854c825281e556b67f743c1e6c7eec6d802cc9e5"
+bytes = 323177199
+
+[[files]]
+path = "Telco/Telco_1.csv.bz2"
+blake3 = "9f8038dba2dbe790f78c5eb95849a5e926e333bfd93c5b1f4b73e4d3ef886280"
+bytes = 726757905
+
+[[files]]
+path = "TrainsUK1/TrainsUK1_2.csv.bz2"
+blake3 = "f4c7926653c5da92430519686fd2033607299b4a5cab29c172a0a0d87cab85b8"
+bytes = 175555047
+
+[[files]]
+path = "TrainsUK2/TrainsUK2_1.csv.bz2"
+blake3 = "d8c34aadb46591507526519ba72bdceb3905c0f699aef3618b9b97899f41d894"
+bytes = 568463724
+
+[[files]]
+path = "USCensus/USCensus_1.csv.bz2"
+blake3 = "acafdd3c7b5a8a591517798afcaa6c99027c266f8868abcba74e2c6593362347"
+bytes = 768182889
+
+[[files]]
+path = "Uberlandia/Uberlandia_1.csv.bz2"
+blake3 = "1a5690988afd745c78cbf74f4ada9d614a5e1d1e1c8943d5a07712362ac7c86a"
+bytes = 405669478
+
+[[files]]
+path = "Wins/Wins_1.csv.bz2"
+blake3 = "b9800987062a7ce9628c9cfe94842fbc9b2f277a516ab32cbc1db715314ff390"
+bytes = 131362720
+
+[[files]]
+path = "YaleLanguages/YaleLanguages_1.csv.bz2"
+blake3 = "f4fd638205dca30417a02402928c4abfe7200cb8bf05be5edcaac84c2b292756"
+bytes = 12421515

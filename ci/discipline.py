@@ -61,6 +61,7 @@ MANIFEST_FIELDS = {
         "licence",
         "category",
         "licence_note",
+        "part_of",
     },
     "files": {"path", "blake3", "bytes", "url"},
     "generator": {
@@ -132,12 +133,52 @@ def check_corpora() -> None:
     corpora = ROOT / "corpora"
     if not corpora.exists():
         return
+    parsed: dict[str, dict] = {}
     for directory in sorted(p for p in corpora.iterdir() if p.is_dir()):
         manifest_path = directory / "manifest.toml"
         if not manifest_path.exists():
             fail(f"corpus {directory.name}: no manifest.toml")
             continue
         check_manifest(manifest_path)
+        try:
+            parsed[directory.name] = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError:
+            pass
+    check_parts(parsed)
+
+
+def check_parts(manifests: dict[str, dict]) -> None:
+    """Checks that a corpus claiming to be part of another really is one.
+
+    Public BI is the case. The 36 table subset much of the encoding literature
+    measures is only meaningful if it is provably 36 of the 206, and a subset
+    that has quietly drifted from the set it names is worse than no subset at
+    all, because every number labelled with it is then a number about something
+    nobody can reconstruct.
+    """
+    for name, manifest in sorted(manifests.items()):
+        whole_name = str(manifest.get("corpus", {}).get("part_of", "")).strip()
+        if not whole_name:
+            continue
+        if whole_name == name:
+            fail(f"corpus {name}: says it is part of itself")
+            continue
+        whole = manifests.get(whole_name)
+        if whole is None:
+            fail(f"corpus {name}: says it is part of '{whole_name}', which is not in corpora/")
+            continue
+        held = {
+            entry.get("path"): (entry.get("blake3"), entry.get("bytes"))
+            for entry in whole.get("files", [])
+        }
+        for entry in manifest.get("files", []):
+            path = entry.get("path")
+            if path not in held:
+                fail(f"corpus {name}: pins '{path}', which is not in '{whole_name}'")
+            elif held[path] != (entry.get("blake3"), entry.get("bytes")):
+                fail(f"corpus {name}: pins '{path}' differently from '{whole_name}'")
+        if len(manifest.get("files", [])) >= len(whole.get("files", [])):
+            fail(f"corpus {name}: is not smaller than '{whole_name}', so it is not a part of it")
 
 
 def check_fields(name: str, table: str, values: dict, allowed: set[str]) -> None:

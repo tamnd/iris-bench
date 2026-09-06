@@ -1,0 +1,1058 @@
+# The Public BI benchmark, all 206 tables across 46 Tableau Public workbooks. Real data and real
+# queries rather than anything generated, which is the reason this corpus is the one the encoding
+# literature settled on and the reason it is worth being careful about.
+#
+# Fetched from the location the benchmark publishes and never redistributed here. The workbooks are
+# public and the derived .csv files are the benchmark authors' work, so the bytes stay where they
+# are and this repository holds only the digests.
+#
+# 43,334,957,146 bytes as fetched, which is bzip2 compressed CSV, and about 386 GB once
+# decompressed. corpora/public-bi-36 is the 36 table subset most published encoding numbers are
+# taken over, and it is a part of this one rather than a separate download, so a machine holding
+# both stores the shared tables once.
+#
+# 206 declared files, 180 distinct objects. Twenty six of the MLB tables are byte for byte a
+# duplicate of another MLB table, because Tableau extracted that workbook several ways and some of
+# the extracts came out identical. The store notices without being told, which is what addressing by
+# content is for, and the corpus still declares all 206 because the benchmark does.
+#
+# There is no [assertions] block. These are bzip2 compressed CSV rather than Parquet, so there is no
+# footer to read a shape out of, and asserting a row count would mean decompressing 386 GiB to check
+# something the digests already fix.
+
+[corpus]
+name = "public-bi"
+description = "The Public BI benchmark, all 206 tables from 46 Tableau Public workbooks"
+source = "https://event.cwi.nl/da/PublicBIbenchmark/"
+licence = "Tableau Public workbook data, redistribution not asserted"
+category = "fetch"
+
+[[files]]
+path = "Arade/Arade_1.csv.bz2"
+blake3 = "0f648d1daacd26a97367e6b71bf9e1c298c91470c72326608c008b46b5c59e77"
+bytes = 162560322
+
+[[files]]
+path = "Bimbo/Bimbo_1.csv.bz2"
+blake3 = "1b84b0b206e4ea7124d98404535a43069731bcb4138daa3cae37d653de57a67c"
+bytes = 394724736
+
+[[files]]
+path = "CMSprovider/CMSprovider_1.csv.bz2"
+blake3 = "bf2af1ebf2cfc9aa1a00d7180357f8537e121db2f32b7192bc521468ba28a2cb"
+bytes = 321093709
+
+[[files]]
+path = "CMSprovider/CMSprovider_2.csv.bz2"
+blake3 = "294a24d12f3095bbbb3e4e8f51577b221291778f4d23ba704e4d176752f71ce7"
+bytes = 321142586
+
+[[files]]
+path = "CityMaxCapita/CityMaxCapita_1.csv.bz2"
+blake3 = "f800c62d43ef5cf3268e7b13c1ab34202091a6dc7ab2a5284939930a37e8e303"
+bytes = 87308542
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_1.csv.bz2"
+blake3 = "e98da8ebda28958df4507cf416b65b03ec99f8b6dbc62ba4ddba7fb56c5298c7"
+bytes = 378224148
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_10.csv.bz2"
+blake3 = "c2fb05a5dbeb7559a6192e36b65bcf644f95dc22182d628a600f01c8f25392ad"
+bytes = 355518467
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_11.csv.bz2"
+blake3 = "5fbb937fe0175859091c320a2ec8a91c8e1b1efc49d8cd12d1a7b8edaa16f5bc"
+bytes = 354249333
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_12.csv.bz2"
+blake3 = "dddbb494aa1fad0f854e0b16e5cd8ead191f60b052c6a7f1f8967ed65a37eab7"
+bytes = 350380379
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_13.csv.bz2"
+blake3 = "ec3c7a1c089494f1034203a4bbbcedf48f0d91e26a7bc74cd774ef76ce3d1a4d"
+bytes = 351982494
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_2.csv.bz2"
+blake3 = "a91510ab697d96c689d76c373f18b68a691fb2866f7a5a7c29e3b8e892213d1c"
+bytes = 378351793
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_3.csv.bz2"
+blake3 = "7f41af5144b47a3b7895825a14a67074364e22ae952dced17413089e1b2ebba1"
+bytes = 378478940
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_4.csv.bz2"
+blake3 = "38d8eef452818272f62e3b1497d5993c09e07eb57cec3dbe26fb35e60cfe8936"
+bytes = 370370399
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_5.csv.bz2"
+blake3 = "5709d830f7c0f29caf36862374b115bbc47a6713e696eed6a88144f4f24dd4d8"
+bytes = 351810942
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_6.csv.bz2"
+blake3 = "5d78263d4b04bdbf4d119d8b262e9d74119e4e3854372e5979919a487518db2a"
+bytes = 356180156
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_7.csv.bz2"
+blake3 = "8f6a603b2deadb06242427d87a30034046fb64a5d1693df919d03109f4dff4b8"
+bytes = 350570453
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_8.csv.bz2"
+blake3 = "cd09e62095d3c00ffd32774bae14a710d8b265c4d844370d80453527e90fdde5"
+bytes = 350110423
+
+[[files]]
+path = "CommonGovernment/CommonGovernment_9.csv.bz2"
+blake3 = "192953dcfc8bfd6b5e75d620738922792498ac5f1565ace238a8d8b51a0f73cc"
+bytes = 355434340
+
+[[files]]
+path = "Corporations/Corporations_1.csv.bz2"
+blake3 = "f6dc3d0c410fb88dab33120d155776ecb507cc983044b109adfb8ac66174518e"
+bytes = 37406370
+
+[[files]]
+path = "Eixo/Eixo_1.csv.bz2"
+blake3 = "f10c05dc05644d01dd513706b1a1f8002df4f41151ee3fcac069ca5d0beec24d"
+bytes = 403957418
+
+[[files]]
+path = "Euro2016/Euro2016_1.csv.bz2"
+blake3 = "b9856f8e6132ab1be732f6a01888331d3d87aaabc437666d19449140992282b9"
+bytes = 97474419
+
+[[files]]
+path = "Food/Food_1.csv.bz2"
+blake3 = "6b124fed148898880e65d628328a0495c4b92c045bae60dd764d16098c0ac4e3"
+bytes = 38466097
+
+[[files]]
+path = "Generico/Generico_1.csv.bz2"
+blake3 = "14fcb889336e6d795b4fa17d9bf18101f0fa7e6778cbfd5acf2ec10ef304eb16"
+bytes = 588230250
+
+[[files]]
+path = "Generico/Generico_2.csv.bz2"
+blake3 = "d62afb626d11cbfa4975b37fb63f1b320c179a638eff2db38ab09502535afde4"
+bytes = 655930743
+
+[[files]]
+path = "Generico/Generico_3.csv.bz2"
+blake3 = "bb2b1ffdb4a78782a72b16d23efc66b941dba0868ad5fb38d5cbc85c4c61456f"
+bytes = 656255581
+
+[[files]]
+path = "Generico/Generico_4.csv.bz2"
+blake3 = "25ed1ec4802769fb7507016143a2ed32ce6364ca0d5608f5ca27fe3e4f15c149"
+bytes = 656179711
+
+[[files]]
+path = "Generico/Generico_5.csv.bz2"
+blake3 = "76c33f294d17451824817015da34aa52ce58fbf178ae6ffdd3e33a1272e969eb"
+bytes = 656299789
+
+[[files]]
+path = "HashTags/HashTags_1.csv.bz2"
+blake3 = "552d124c40a80388e44ec787534258e8b78d62be2b694495cb1c5c9ab48a4f61"
+bytes = 98582105
+
+[[files]]
+path = "Hatred/Hatred_1.csv.bz2"
+blake3 = "5f89285f6deabbe6d7a9d4dc81453532bee3d3863fd7e77f334e01e58d1b619e"
+bytes = 86463927
+
+[[files]]
+path = "IGlocations1/IGlocations1_1.csv.bz2"
+blake3 = "d70c5cff36b36b0581bca97917af50589c27a818d911df31a13c93437ff27f64"
+bytes = 1586852
+
+[[files]]
+path = "IGlocations2/IGlocations2_1.csv.bz2"
+blake3 = "1151e5a2fe00fb1e8898d46285b7ff800095c66ac218f5ef6448344b896c4e37"
+bytes = 208875374
+
+[[files]]
+path = "IGlocations2/IGlocations2_2.csv.bz2"
+blake3 = "8af5024b03c95b59a6f53c36214d01514cf6751af2e4f54cbd0c9fc10442cc98"
+bytes = 208802058
+
+[[files]]
+path = "IUBLibrary/IUBLibrary_1.csv.bz2"
+blake3 = "a84eadfcc9f74b7e2be3a48770f4a828b8b17091497c98a45f634122e69680de"
+bytes = 136544
+
+[[files]]
+path = "MLB/MLB_1.csv.bz2"
+blake3 = "c591279ef8281341083e34c101d9d03bebf08f767129ade51a4d8c6a01451972"
+bytes = 2657601
+
+[[files]]
+path = "MLB/MLB_10.csv.bz2"
+blake3 = "fb6fc4080fbc366f7839ec90d789315b60fecccf2a3d9d0f060c25424618eecf"
+bytes = 4034749
+
+[[files]]
+path = "MLB/MLB_11.csv.bz2"
+blake3 = "44fc2445cd7dc8e272c461a514e688bf6813ab99c5f71253c8cce1f34d53aada"
+bytes = 4058754
+
+[[files]]
+path = "MLB/MLB_12.csv.bz2"
+blake3 = "c591279ef8281341083e34c101d9d03bebf08f767129ade51a4d8c6a01451972"
+bytes = 2657601
+
+[[files]]
+path = "MLB/MLB_13.csv.bz2"
+blake3 = "c591279ef8281341083e34c101d9d03bebf08f767129ade51a4d8c6a01451972"
+bytes = 2657601
+
+[[files]]
+path = "MLB/MLB_14.csv.bz2"
+blake3 = "c591279ef8281341083e34c101d9d03bebf08f767129ade51a4d8c6a01451972"
+bytes = 2657601
+
+[[files]]
+path = "MLB/MLB_15.csv.bz2"
+blake3 = "f5aa6f2959be1c698a4b6896374a1f26f8e07b145a0ac611c3773a4814aec7fa"
+bytes = 9017668
+
+[[files]]
+path = "MLB/MLB_16.csv.bz2"
+blake3 = "0b2fbbf56204218816f8ae06b03634723aab4b9a9c7ca8b7ba0655d2f8d7ecc3"
+bytes = 9018074
+
+[[files]]
+path = "MLB/MLB_17.csv.bz2"
+blake3 = "ac770425d79b7be599e6c13244476f3128e0085038b5bafd56fd7926efdd068d"
+bytes = 9033268
+
+[[files]]
+path = "MLB/MLB_18.csv.bz2"
+blake3 = "964d0e55a6cf4b451dbdbe49f320ccfdff019ca843c774c51f39728ad7c4e8dd"
+bytes = 9026989
+
+[[files]]
+path = "MLB/MLB_19.csv.bz2"
+blake3 = "a2065b896380c456ea55c9fe0d35bf1532607d49cc8e68c0caf86273dc2f4385"
+bytes = 4319855
+
+[[files]]
+path = "MLB/MLB_2.csv.bz2"
+blake3 = "190a5469fc0c5470985032710d18c0f74b6470fd14843878057639d4da8d4a81"
+bytes = 105308340
+
+[[files]]
+path = "MLB/MLB_20.csv.bz2"
+blake3 = "a2065b896380c456ea55c9fe0d35bf1532607d49cc8e68c0caf86273dc2f4385"
+bytes = 4319855
+
+[[files]]
+path = "MLB/MLB_21.csv.bz2"
+blake3 = "a2065b896380c456ea55c9fe0d35bf1532607d49cc8e68c0caf86273dc2f4385"
+bytes = 4319855
+
+[[files]]
+path = "MLB/MLB_22.csv.bz2"
+blake3 = "7497e883565acc65867098177695a3eda34c04a17a0d55a19ae30e55ce6ea5e3"
+bytes = 9879815
+
+[[files]]
+path = "MLB/MLB_23.csv.bz2"
+blake3 = "277dbdb0b46223c44157568123b55292fed2c27cb1a08296f22b7c7d822b0b44"
+bytes = 9851244
+
+[[files]]
+path = "MLB/MLB_24.csv.bz2"
+blake3 = "e437a477441ca329e6935900cb95f49a55500ae05e95e6dc8793b29ca40b4558"
+bytes = 9877242
+
+[[files]]
+path = "MLB/MLB_25.csv.bz2"
+blake3 = "3ada8f3e43948d53dffc3350a1fceafc3478a9d0d10575845b4751c13c87d3ca"
+bytes = 7571607
+
+[[files]]
+path = "MLB/MLB_26.csv.bz2"
+blake3 = "34430d2af041c6c09af398f9a0c7060ed54c2ab0c29708ece662b14a4c88031f"
+bytes = 7592575
+
+[[files]]
+path = "MLB/MLB_27.csv.bz2"
+blake3 = "84c29992e1c538fb4676ac94c629c4586711144610f4c0ffabcd5a99df300bf4"
+bytes = 7564985
+
+[[files]]
+path = "MLB/MLB_28.csv.bz2"
+blake3 = "40117c342cfc7f593137bc8d010c53e344a81e4be916112719b2a9b3ea2669a6"
+bytes = 7580332
+
+[[files]]
+path = "MLB/MLB_29.csv.bz2"
+blake3 = "a01a1ee99e777e115551931e2d88790d7227ce412b54b62e87ac3a854323edae"
+bytes = 7576060
+
+[[files]]
+path = "MLB/MLB_3.csv.bz2"
+blake3 = "544c8f6bc847a5eb86ca407eece52ee31c06e366d448480fdfbba3119d1677e5"
+bytes = 105530932
+
+[[files]]
+path = "MLB/MLB_30.csv.bz2"
+blake3 = "0b6e514e293ee5727f02ae4e864913bed01118905131caff96fbc67067f28fb5"
+bytes = 7583047
+
+[[files]]
+path = "MLB/MLB_31.csv.bz2"
+blake3 = "98c6f138eff3e99cb5ccf5a5ac6411485cb59bb24cdcd28d68b1f87a737c4834"
+bytes = 4382861
+
+[[files]]
+path = "MLB/MLB_32.csv.bz2"
+blake3 = "98c6f138eff3e99cb5ccf5a5ac6411485cb59bb24cdcd28d68b1f87a737c4834"
+bytes = 4382861
+
+[[files]]
+path = "MLB/MLB_33.csv.bz2"
+blake3 = "98c6f138eff3e99cb5ccf5a5ac6411485cb59bb24cdcd28d68b1f87a737c4834"
+bytes = 4382861
+
+[[files]]
+path = "MLB/MLB_34.csv.bz2"
+blake3 = "98c6f138eff3e99cb5ccf5a5ac6411485cb59bb24cdcd28d68b1f87a737c4834"
+bytes = 4382861
+
+[[files]]
+path = "MLB/MLB_35.csv.bz2"
+blake3 = "98c6f138eff3e99cb5ccf5a5ac6411485cb59bb24cdcd28d68b1f87a737c4834"
+bytes = 4382861
+
+[[files]]
+path = "MLB/MLB_36.csv.bz2"
+blake3 = "98c6f138eff3e99cb5ccf5a5ac6411485cb59bb24cdcd28d68b1f87a737c4834"
+bytes = 4382861
+
+[[files]]
+path = "MLB/MLB_37.csv.bz2"
+blake3 = "98c6f138eff3e99cb5ccf5a5ac6411485cb59bb24cdcd28d68b1f87a737c4834"
+bytes = 4382861
+
+[[files]]
+path = "MLB/MLB_38.csv.bz2"
+blake3 = "393af16036a8028ef98919857108811be6fdf02a3574a821b320a99db1aa1a65"
+bytes = 6050443
+
+[[files]]
+path = "MLB/MLB_39.csv.bz2"
+blake3 = "8c08a410fdeacf5d04bde601e2712583535fb1d06a8b2b3f724667bb2fc37fc3"
+bytes = 6049978
+
+[[files]]
+path = "MLB/MLB_4.csv.bz2"
+blake3 = "85c9c7b4475568821f276d6478f7831a0b2bbe4990c07bdde0368bee4e392033"
+bytes = 105404288
+
+[[files]]
+path = "MLB/MLB_40.csv.bz2"
+blake3 = "09d8865ad2eb1284df770bac65ff303cb794646aa5cdc4add3cb3836c9504871"
+bytes = 6049677
+
+[[files]]
+path = "MLB/MLB_41.csv.bz2"
+blake3 = "0c2c7c62dd6637f5070576fafb1ee1bcbc2acd65e2fe370ca0f626cb712dbdf3"
+bytes = 3144447
+
+[[files]]
+path = "MLB/MLB_42.csv.bz2"
+blake3 = "0c2c7c62dd6637f5070576fafb1ee1bcbc2acd65e2fe370ca0f626cb712dbdf3"
+bytes = 3144447
+
+[[files]]
+path = "MLB/MLB_43.csv.bz2"
+blake3 = "0c2c7c62dd6637f5070576fafb1ee1bcbc2acd65e2fe370ca0f626cb712dbdf3"
+bytes = 3144447
+
+[[files]]
+path = "MLB/MLB_44.csv.bz2"
+blake3 = "0c2c7c62dd6637f5070576fafb1ee1bcbc2acd65e2fe370ca0f626cb712dbdf3"
+bytes = 3144447
+
+[[files]]
+path = "MLB/MLB_45.csv.bz2"
+blake3 = "aa0ee308678cc46ee90f1f0411fb5d90cf3bc4582d7e7d90c212e909974344e6"
+bytes = 3232166
+
+[[files]]
+path = "MLB/MLB_46.csv.bz2"
+blake3 = "aa0ee308678cc46ee90f1f0411fb5d90cf3bc4582d7e7d90c212e909974344e6"
+bytes = 3232166
+
+[[files]]
+path = "MLB/MLB_47.csv.bz2"
+blake3 = "aa0ee308678cc46ee90f1f0411fb5d90cf3bc4582d7e7d90c212e909974344e6"
+bytes = 3232166
+
+[[files]]
+path = "MLB/MLB_48.csv.bz2"
+blake3 = "aa0ee308678cc46ee90f1f0411fb5d90cf3bc4582d7e7d90c212e909974344e6"
+bytes = 3232166
+
+[[files]]
+path = "MLB/MLB_49.csv.bz2"
+blake3 = "633552eccbe6d23c456a42285adbef0aa915a5de0a7dcbfac7d5bdbee56b1942"
+bytes = 3142381
+
+[[files]]
+path = "MLB/MLB_5.csv.bz2"
+blake3 = "d140f8f55e49e6d6d4893fcfd8cf531d8f5a7ed3444b01683917b7f0baa98961"
+bytes = 125231524
+
+[[files]]
+path = "MLB/MLB_50.csv.bz2"
+blake3 = "633552eccbe6d23c456a42285adbef0aa915a5de0a7dcbfac7d5bdbee56b1942"
+bytes = 3142381
+
+[[files]]
+path = "MLB/MLB_51.csv.bz2"
+blake3 = "633552eccbe6d23c456a42285adbef0aa915a5de0a7dcbfac7d5bdbee56b1942"
+bytes = 3142381
+
+[[files]]
+path = "MLB/MLB_52.csv.bz2"
+blake3 = "d4e428a9a7c8947fe1c3fb9df2587d799dba6f820c35a3e76907b8c1938b9ae2"
+bytes = 33438
+
+[[files]]
+path = "MLB/MLB_53.csv.bz2"
+blake3 = "eeebb285029f26ad4014cbdd0aeb0541e8248e101342e46d77cc543fe1349075"
+bytes = 5310442
+
+[[files]]
+path = "MLB/MLB_54.csv.bz2"
+blake3 = "eeebb285029f26ad4014cbdd0aeb0541e8248e101342e46d77cc543fe1349075"
+bytes = 5310442
+
+[[files]]
+path = "MLB/MLB_55.csv.bz2"
+blake3 = "eeebb285029f26ad4014cbdd0aeb0541e8248e101342e46d77cc543fe1349075"
+bytes = 5310442
+
+[[files]]
+path = "MLB/MLB_56.csv.bz2"
+blake3 = "eeebb285029f26ad4014cbdd0aeb0541e8248e101342e46d77cc543fe1349075"
+bytes = 5310442
+
+[[files]]
+path = "MLB/MLB_57.csv.bz2"
+blake3 = "148c20d6eeb23094261d10be6e8b5c67b9e6e476e2ef21bfd363e40693ed3850"
+bytes = 2480
+
+[[files]]
+path = "MLB/MLB_58.csv.bz2"
+blake3 = "4f38434c4e5271de506f637f956cf73fb287b210f77a4b7310171972d82caf2c"
+bytes = 2084225
+
+[[files]]
+path = "MLB/MLB_59.csv.bz2"
+blake3 = "4f38434c4e5271de506f637f956cf73fb287b210f77a4b7310171972d82caf2c"
+bytes = 2084225
+
+[[files]]
+path = "MLB/MLB_6.csv.bz2"
+blake3 = "1aedf15dc9ee3a7ba0b48ca9b0e61502c402af20159897103ce23842b75cdb2b"
+bytes = 125247900
+
+[[files]]
+path = "MLB/MLB_60.csv.bz2"
+blake3 = "4f38434c4e5271de506f637f956cf73fb287b210f77a4b7310171972d82caf2c"
+bytes = 2084225
+
+[[files]]
+path = "MLB/MLB_61.csv.bz2"
+blake3 = "4f38434c4e5271de506f637f956cf73fb287b210f77a4b7310171972d82caf2c"
+bytes = 2084225
+
+[[files]]
+path = "MLB/MLB_62.csv.bz2"
+blake3 = "4f38434c4e5271de506f637f956cf73fb287b210f77a4b7310171972d82caf2c"
+bytes = 2084225
+
+[[files]]
+path = "MLB/MLB_63.csv.bz2"
+blake3 = "5d0bab3e61700abde1caeb44844ad7e3dfa9db2f6fb7fccb978a93f2816e5395"
+bytes = 22251745
+
+[[files]]
+path = "MLB/MLB_64.csv.bz2"
+blake3 = "c7d80939fb95cba0fd4bbbd71a57b669104d9e8742525425bc4b3fcf67398312"
+bytes = 22290064
+
+[[files]]
+path = "MLB/MLB_65.csv.bz2"
+blake3 = "35c3253c85cc76f5aa7f91e6f83c351955b81779887e901fbd252fc937ce4650"
+bytes = 22276898
+
+[[files]]
+path = "MLB/MLB_66.csv.bz2"
+blake3 = "0e255e6524b606727a566252ef683a20d20032b18695504b31c13a7d230c8c5a"
+bytes = 128282772
+
+[[files]]
+path = "MLB/MLB_67.csv.bz2"
+blake3 = "4563db376dad6f4b0914b74ff6cb15746a4a8b973e1356355414062f88f29c4c"
+bytes = 105392162
+
+[[files]]
+path = "MLB/MLB_68.csv.bz2"
+blake3 = "315fe4db3ac9b43fd355ff2d3061eae211aba3389780122a22d61c563ef81b16"
+bytes = 125264995
+
+[[files]]
+path = "MLB/MLB_7.csv.bz2"
+blake3 = "143913c835d83d7d5a5d49e9090b6486c9df7bcd63710b4567ef15e087c43cce"
+bytes = 4071683
+
+[[files]]
+path = "MLB/MLB_8.csv.bz2"
+blake3 = "66eb660bb10e8b3e530d3560bb572961e27afc6567eae21f483b1d92a70b6642"
+bytes = 4044422
+
+[[files]]
+path = "MLB/MLB_9.csv.bz2"
+blake3 = "75bf5768009452aaed1fb2f5dd80f1902662f6ccd62f314153164707bec27e2f"
+bytes = 4061004
+
+[[files]]
+path = "MedPayment1/MedPayment1_1.csv.bz2"
+blake3 = "36efef347c7094c737a29a0762b497225285b5dead5b7700ce5e498e33fc05dd"
+bytes = 324099266
+
+[[files]]
+path = "MedPayment2/MedPayment2_1.csv.bz2"
+blake3 = "76ce34ffd54c01c128d037d592165364775a7b1cbd6bb8be8002437bcb2d2058"
+bytes = 358574114
+
+[[files]]
+path = "Medicare1/Medicare1_1.csv.bz2"
+blake3 = "ad1d5cd68705ddf857ad64fe83a83d1d708de7f9d02d9a573789f8bad741abab"
+bytes = 360397215
+
+[[files]]
+path = "Medicare1/Medicare1_2.csv.bz2"
+blake3 = "da5b0e43d0dad0f97fa8dc99c8fc5eb0f6f4cad823e14487b3674c429380f1b1"
+bytes = 360650624
+
+[[files]]
+path = "Medicare2/Medicare2_1.csv.bz2"
+blake3 = "c9ec759da7d7a3670ebb59c9fdeebaff66494c3d5c6514de6264f332e5276808"
+bytes = 323112620
+
+[[files]]
+path = "Medicare2/Medicare2_2.csv.bz2"
+blake3 = "7dbb143a1de5bc58a19560a07485188a14dbb0b539035e37cd23f560104ec1e5"
+bytes = 323237525
+
+[[files]]
+path = "Medicare3/Medicare3_1.csv.bz2"
+blake3 = "368e390d1e31ab25e8800f8b6a666cf5d57c1474288251eacee1c502ca7d2a3a"
+bytes = 360515739
+
+[[files]]
+path = "Motos/Motos_1.csv.bz2"
+blake3 = "0b0496a2fab1cb8da5da76a840d8b6d957ca96b9c961f9354b2757860082be56"
+bytes = 398792220
+
+[[files]]
+path = "Motos/Motos_2.csv.bz2"
+blake3 = "ae2ab8e1617af5029c255f4e589e51afbe502839a3ede243213b2b3df2527574"
+bytes = 403047597
+
+[[files]]
+path = "MulheresMil/MulheresMil_1.csv.bz2"
+blake3 = "e7c73854f5b5553841fd22dbeec35b1ce5e71a509bc4bab3a056721f0af74225"
+bytes = 406006611
+
+[[files]]
+path = "NYC/NYC_1.csv.bz2"
+blake3 = "197d6eaf0f80ff2dd4597dee5612431be0237769d7384a6bc817c083ef401fe3"
+bytes = 358999365
+
+[[files]]
+path = "NYC/NYC_2.csv.bz2"
+blake3 = "1914e3f2b7115053ff2ec2f8fa6ad2c55e22d007e36b0dfc931baa564bfc5c9b"
+bytes = 358924812
+
+[[files]]
+path = "PanCreactomy1/PanCreactomy1_1.csv.bz2"
+blake3 = "47e9fa48cfa739cd2118a7dea7049283b6fd1e063f79f8ed367e85236ab6f5a0"
+bytes = 338973914
+
+[[files]]
+path = "PanCreactomy2/PanCreactomy2_1.csv.bz2"
+blake3 = "99ef1a4c8b552b805b130f8486e535ee0f994101e9b9574e7afed15d7542bb39"
+bytes = 338958698
+
+[[files]]
+path = "PanCreactomy2/PanCreactomy2_2.csv.bz2"
+blake3 = "c9ba2f311c37690e1b254c0447f294eb4ea2a4cce678df1abb924ed1e1648a96"
+bytes = 338877143
+
+[[files]]
+path = "Physicians/Physicians_1.csv.bz2"
+blake3 = "0f141192615f17ebd5e397c7b3a86732157754ec11ef3069efa70da55458f1da"
+bytes = 323986936
+
+[[files]]
+path = "Provider/Provider_1.csv.bz2"
+blake3 = "0f2217a36e3eba9430efb3ca588abf93042e8f4f5ec87f97c1ed24ac78f91447"
+bytes = 323342180
+
+[[files]]
+path = "Provider/Provider_2.csv.bz2"
+blake3 = "da8775fd2c2f54c862a010752f59891acd4c27c57a6426b9b409d5a96007b850"
+bytes = 323006755
+
+[[files]]
+path = "Provider/Provider_3.csv.bz2"
+blake3 = "008abd1f9dece271982517f43ef7af24418b9c1ccb7ce6eaa3477f1983e3025e"
+bytes = 323002782
+
+[[files]]
+path = "Provider/Provider_4.csv.bz2"
+blake3 = "9f05fe059dd7a811f3a06538a1490884751c7694298d141e69e9f4ebb692c47e"
+bytes = 323237841
+
+[[files]]
+path = "Provider/Provider_5.csv.bz2"
+blake3 = "f55bd484b29b0624258463c976506b123cdcb35e2f55c5bc95b2c3a5d3021a60"
+bytes = 323200336
+
+[[files]]
+path = "Provider/Provider_6.csv.bz2"
+blake3 = "3390ca207923579153c2ca95b89405237ac666fb13da39f6b962dc4ff3f8a830"
+bytes = 323269696
+
+[[files]]
+path = "Provider/Provider_7.csv.bz2"
+blake3 = "82936978c405fdfc0e20d92676510a62aa0b51c56fb4e7b9e59cb85c0f753cf4"
+bytes = 323511268
+
+[[files]]
+path = "Provider/Provider_8.csv.bz2"
+blake3 = "81100699fb519abf10e8d232e32d9d2f4f155e32bcf59b0d9561b6d92d9a867c"
+bytes = 323228400
+
+[[files]]
+path = "RealEstate1/RealEstate1_1.csv.bz2"
+blake3 = "1e79cddfc4ea35b55d3187f12c2441d0b5a2996417ca9bc76fb52d92cd2927b4"
+bytes = 1112896530
+
+[[files]]
+path = "RealEstate1/RealEstate1_2.csv.bz2"
+blake3 = "62a7bc3536726426eb82ffa2e30e5530f087718ce7b2e23ba3d8863734098ca4"
+bytes = 1112999474
+
+[[files]]
+path = "RealEstate2/RealEstate2_1.csv.bz2"
+blake3 = "3a835d1208db6c126b3ae32655fadc242399c18669cc4374538f013f96150aec"
+bytes = 680226560
+
+[[files]]
+path = "RealEstate2/RealEstate2_2.csv.bz2"
+blake3 = "2c03af8c847273d186fe0e84f598b0353a4dda56310444a8efd0af71c6589809"
+bytes = 680171248
+
+[[files]]
+path = "RealEstate2/RealEstate2_3.csv.bz2"
+blake3 = "1d6df2aec3746d134f795d90640c0d97b2fe63c3afa6e5dd1a824a3499179e6d"
+bytes = 680292376
+
+[[files]]
+path = "RealEstate2/RealEstate2_4.csv.bz2"
+blake3 = "65f7eb78dc81db9e38739a9b5ec1f0fd111d0dd16f14029865f529d1babe93f5"
+bytes = 680339517
+
+[[files]]
+path = "RealEstate2/RealEstate2_5.csv.bz2"
+blake3 = "f08e5edca69598adc844086c4dee21240a1b2d683c6128aec6c2f128ffb45a70"
+bytes = 680215180
+
+[[files]]
+path = "RealEstate2/RealEstate2_6.csv.bz2"
+blake3 = "938fa4767d1afd26caa108e3f171b8ba1af05c98101f424d8c3591c229da6d58"
+bytes = 680138679
+
+[[files]]
+path = "RealEstate2/RealEstate2_7.csv.bz2"
+blake3 = "99e7021758d78ea205a01cfbeafa36af20c7b21198d8356ffe3a09f88ebbbfff"
+bytes = 680188446
+
+[[files]]
+path = "Redfin1/Redfin1_1.csv.bz2"
+blake3 = "cfa31d04ef3bbd21d6c350f65f414f095ed280cb47ca7653aded8df31791f538"
+bytes = 369564432
+
+[[files]]
+path = "Redfin1/Redfin1_2.csv.bz2"
+blake3 = "992514caf7236c8197024023c5a7ad7defb88f72b5dbcc1eedf0c9985b3e8a29"
+bytes = 369475706
+
+[[files]]
+path = "Redfin1/Redfin1_3.csv.bz2"
+blake3 = "062786df96fbb170d7a8ac6e1c7d9b838a9afca490e627fed342fb2f90247677"
+bytes = 369567690
+
+[[files]]
+path = "Redfin1/Redfin1_4.csv.bz2"
+blake3 = "d051529948af0ec016c2ee8b182f55c6fc1516cf340fca6eba41fadb430fa951"
+bytes = 369581961
+
+[[files]]
+path = "Redfin2/Redfin2_1.csv.bz2"
+blake3 = "c75277587b0f2666d35cef52d88571c00a678976bf1c92ccfedb31d422022c86"
+bytes = 369547968
+
+[[files]]
+path = "Redfin2/Redfin2_2.csv.bz2"
+blake3 = "5c0001eeb43a698269dbecd8bd51500bf13ddf8c05e68f3cae58d9d334dfdb70"
+bytes = 369565172
+
+[[files]]
+path = "Redfin2/Redfin2_3.csv.bz2"
+blake3 = "fff495bfde0e4a1760010416d4f6b07dab8daa6a2c0fccf74f93934ffe63a20c"
+bytes = 369532045
+
+[[files]]
+path = "Redfin3/Redfin3_1.csv.bz2"
+blake3 = "8677a5ed4dbb6f313c18c7ad79aa428eb8b410ae4786c41386b761e5072a07d2"
+bytes = 401428879
+
+[[files]]
+path = "Redfin3/Redfin3_2.csv.bz2"
+blake3 = "d35f172351a4b85500065487cc5a09d06379caddf98988ff7d41dbffd8ebf42a"
+bytes = 401445727
+
+[[files]]
+path = "Redfin4/Redfin4_1.csv.bz2"
+blake3 = "77458003461f1f3b21a5ec82cb5cfec50a8b5e935ad3ea2fd82a994885ae3f0c"
+bytes = 413467463
+
+[[files]]
+path = "Rentabilidad/Rentabilidad_1.csv.bz2"
+blake3 = "ccc3e367c0178507c37baed0e1dcf71609c81a8b0f8a9aa2ff1c53a8971f6b5a"
+bytes = 74010404
+
+[[files]]
+path = "Rentabilidad/Rentabilidad_2.csv.bz2"
+blake3 = "d26e3cd4c5125118074b2b7b6e116d1d651cc54e91a24e911a406f303ba8c6c7"
+bytes = 74185498
+
+[[files]]
+path = "Rentabilidad/Rentabilidad_3.csv.bz2"
+blake3 = "c13562040afa629b9f429756ac8b60558c7f35ef1ced5787ac5c5e34b010ca74"
+bytes = 74068667
+
+[[files]]
+path = "Rentabilidad/Rentabilidad_4.csv.bz2"
+blake3 = "1653ec5045b9ee06f7bf675f2be65c354e3b914e3991448217207d2cb4c96aa4"
+bytes = 74076010
+
+[[files]]
+path = "Rentabilidad/Rentabilidad_5.csv.bz2"
+blake3 = "5ba630337fa71da40d36573ba5d4707fe4c5c357339a7d0ecbf5b65aafd84320"
+bytes = 74002598
+
+[[files]]
+path = "Rentabilidad/Rentabilidad_6.csv.bz2"
+blake3 = "cdee349ce2a7baf8e19990347d0e262c27420f2f569a5e52b8e0e0f93051040e"
+bytes = 74044412
+
+[[files]]
+path = "Rentabilidad/Rentabilidad_7.csv.bz2"
+blake3 = "04845810650b7bfb0df28a0afef4969b660ecac3f7a4e2e635a29397100bf315"
+bytes = 74054565
+
+[[files]]
+path = "Rentabilidad/Rentabilidad_8.csv.bz2"
+blake3 = "cbf490e746c87593d05928d889c6335fa7f6b85ac5d7b2e046419038d54a4d05"
+bytes = 74021821
+
+[[files]]
+path = "Rentabilidad/Rentabilidad_9.csv.bz2"
+blake3 = "33ba7e575671fffb7974f681395c20ec7e08f60b3ce4725c858b0196aa60e021"
+bytes = 74010482
+
+[[files]]
+path = "Romance/Romance_1.csv.bz2"
+blake3 = "9feec1328260bfc822d5d57276e80d6b19e802e72b840e53d885a92180fbcf58"
+bytes = 134950511
+
+[[files]]
+path = "Romance/Romance_2.csv.bz2"
+blake3 = "f83e619508e325444d086e63539ee795a505340e84997e8faa0c955a4361376e"
+bytes = 135009422
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_1.csv.bz2"
+blake3 = "9cfde096030132e4c17c73ac4202d0849123d0d30a75e28162f19e9fa8b82f88"
+bytes = 194093473
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_10.csv.bz2"
+blake3 = "dea4310181d8779e457636634a3805adbbea3a0422bd5f6c0d22b8513aea7c43"
+bytes = 194161572
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_11.csv.bz2"
+blake3 = "9fd942897718195fd9bd7ccd1b64d48f4243780dde5bfaef7d0d559c6cc57029"
+bytes = 194179494
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_12.csv.bz2"
+blake3 = "f4f86b80e94e9e7fa9a24946d39844f8da6c3d16ed8456329a87269d16285890"
+bytes = 194197469
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_13.csv.bz2"
+blake3 = "62544167c2039f15a17cf10b1eaed38ebebced76966f0cf4dc7d064f492279ef"
+bytes = 194157453
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_2.csv.bz2"
+blake3 = "d14cbcc86d9903ec677db2a36c7b965a6d0039d62e7f383c5d98817a46c82505"
+bytes = 1094613
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_3.csv.bz2"
+blake3 = "70e70fc60c1f94fc4134972db69f1fcb29c9263c3766d6b14888ea6ec6273fad"
+bytes = 194151519
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_4.csv.bz2"
+blake3 = "835daefcefecad5aaa7d7ed944a4199d4acbe30584acab149451fe39f9f90598"
+bytes = 194169234
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_5.csv.bz2"
+blake3 = "8fc2a0e391cdd75819a4ca375ca562e5ef3f8be3828f14e3a1c81da2a8e6cf26"
+bytes = 194146060
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_6.csv.bz2"
+blake3 = "6ea7bec5a030fb36f615112b55d8a3c87c90e0aabd0d816ca7825779f5184efc"
+bytes = 194066744
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_7.csv.bz2"
+blake3 = "bc8c6a7dffb651c14d9d758abdc17c3f17b36eae00c53f302b6364de99f2b7c6"
+bytes = 194126899
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_8.csv.bz2"
+blake3 = "6241ef5dc3683c1e4e053eda8f0e80439ddd0d59251ed692e5a3e3e2096bf21e"
+bytes = 194207757
+
+[[files]]
+path = "SalariesFrance/SalariesFrance_9.csv.bz2"
+blake3 = "e5a57b047d55eefdf2068788c9602230fa6fa44ca8ae56d0a375ab21687f18c2"
+bytes = 194136614
+
+[[files]]
+path = "TableroSistemaPenal/TableroSistemaPenal_1.csv.bz2"
+blake3 = "94478bc1f15bd34d6782b4d8fda2fcbfd77f7aba7e88462bd8b0680b94e20b13"
+bytes = 17463053
+
+[[files]]
+path = "TableroSistemaPenal/TableroSistemaPenal_2.csv.bz2"
+blake3 = "18da94853346a7f495ead7e2035ed0c715818544bcf50437c3d7c7427b2f4bea"
+bytes = 33208524
+
+[[files]]
+path = "TableroSistemaPenal/TableroSistemaPenal_3.csv.bz2"
+blake3 = "d87a39fb000498b4f4694b70dfdc145ebb5c01033af4ebcdd4b4c8594d987a5b"
+bytes = 35405375
+
+[[files]]
+path = "TableroSistemaPenal/TableroSistemaPenal_4.csv.bz2"
+blake3 = "78dd09cb9b9dfcbbc4366ce458a28a3816d3038117a955fb974036d3c567d80a"
+bytes = 35406383
+
+[[files]]
+path = "TableroSistemaPenal/TableroSistemaPenal_5.csv.bz2"
+blake3 = "4e23fdab790126eba1364d48a8c3b81f869584d526aca3669ed3bc908968d49a"
+bytes = 35404151
+
+[[files]]
+path = "TableroSistemaPenal/TableroSistemaPenal_6.csv.bz2"
+blake3 = "711b9f04e24455e4133047f2124004d847918bb486e480739e6e89f272b52ede"
+bytes = 61841763
+
+[[files]]
+path = "TableroSistemaPenal/TableroSistemaPenal_7.csv.bz2"
+blake3 = "c6feec4b25767ecb9e102442fc67b5eaa73c147982ab4f2b9e899a49f859572b"
+bytes = 17463717
+
+[[files]]
+path = "TableroSistemaPenal/TableroSistemaPenal_8.csv.bz2"
+blake3 = "f88f4e2019dc46552306d596ca3cfc6ef48a37c0408e92b6be450099602ea993"
+bytes = 35143625
+
+[[files]]
+path = "Taxpayer/Taxpayer_1.csv.bz2"
+blake3 = "10ef09b3c3dc3826a0239a42854c825281e556b67f743c1e6c7eec6d802cc9e5"
+bytes = 323177199
+
+[[files]]
+path = "Taxpayer/Taxpayer_10.csv.bz2"
+blake3 = "7a5c9c76e7df71dbc728f37603a3eba93390a08402b6f871f75411da78ca45b0"
+bytes = 323302769
+
+[[files]]
+path = "Taxpayer/Taxpayer_2.csv.bz2"
+blake3 = "fef9fdc952569b96f2021dc90f2d8060b42efa262019064cdedd7be3f4201caa"
+bytes = 323071280
+
+[[files]]
+path = "Taxpayer/Taxpayer_3.csv.bz2"
+blake3 = "99863a33ab891cc83303c23989674e37a70b3e5065053564e9eed283eedc9ccf"
+bytes = 323012542
+
+[[files]]
+path = "Taxpayer/Taxpayer_4.csv.bz2"
+blake3 = "096c66ab7b11102ed168ac476415f50f69941238b351abb39dd033797bcf39fb"
+bytes = 323242836
+
+[[files]]
+path = "Taxpayer/Taxpayer_5.csv.bz2"
+blake3 = "0705dae4bea4dc0cb76900c1d79fa3465e856432ac3fdcac9eb4598dd298fe35"
+bytes = 323223574
+
+[[files]]
+path = "Taxpayer/Taxpayer_6.csv.bz2"
+blake3 = "d63d918bfa2748f531926dbc70eee044033d32d4eb3d1e3444a9cfa9bac22824"
+bytes = 323404927
+
+[[files]]
+path = "Taxpayer/Taxpayer_7.csv.bz2"
+blake3 = "b05d406164f5c1ecf8006218a91b3fe10526da26f01b970471e9c1141a3d8678"
+bytes = 323243179
+
+[[files]]
+path = "Taxpayer/Taxpayer_8.csv.bz2"
+blake3 = "ed148814c555bc21ef66308abb3321e3ccbf533704c3105ce1b9188d5604dfd1"
+bytes = 323144015
+
+[[files]]
+path = "Taxpayer/Taxpayer_9.csv.bz2"
+blake3 = "cf8fab0a87bf0b8b4b1caed584b54d66e705316d93a495eb228c9634236b4794"
+bytes = 323066424
+
+[[files]]
+path = "Telco/Telco_1.csv.bz2"
+blake3 = "9f8038dba2dbe790f78c5eb95849a5e926e333bfd93c5b1f4b73e4d3ef886280"
+bytes = 726757905
+
+[[files]]
+path = "TrainsUK1/TrainsUK1_1.csv.bz2"
+blake3 = "062df480633be4b8f3a4e08dcff744ef81e9b0b34e4be81e387d7317eebfdbe4"
+bytes = 51
+
+[[files]]
+path = "TrainsUK1/TrainsUK1_2.csv.bz2"
+blake3 = "f4c7926653c5da92430519686fd2033607299b4a5cab29c172a0a0d87cab85b8"
+bytes = 175555047
+
+[[files]]
+path = "TrainsUK1/TrainsUK1_3.csv.bz2"
+blake3 = "4abff0f88f1582812eef67f2737a3ff66dbc0a5704c2a621e1ac340555d43e5d"
+bytes = 175757838
+
+[[files]]
+path = "TrainsUK1/TrainsUK1_4.csv.bz2"
+blake3 = "1b55cab94bdf53367eb9067dacbd591fe249b8873f395379dbfa71ba10db32db"
+bytes = 175586745
+
+[[files]]
+path = "TrainsUK2/TrainsUK2_1.csv.bz2"
+blake3 = "d8c34aadb46591507526519ba72bdceb3905c0f699aef3618b9b97899f41d894"
+bytes = 568463724
+
+[[files]]
+path = "TrainsUK2/TrainsUK2_2.csv.bz2"
+blake3 = "0a45c27c406566fdaced9f953bcb0c3a3beab26f3730e595822dd867f73e7778"
+bytes = 568222095
+
+[[files]]
+path = "USCensus/USCensus_1.csv.bz2"
+blake3 = "acafdd3c7b5a8a591517798afcaa6c99027c266f8868abcba74e2c6593362347"
+bytes = 768182889
+
+[[files]]
+path = "USCensus/USCensus_2.csv.bz2"
+blake3 = "2039049d90b8935052b0e7d4addf78f317cf895c8ebefe43f54d5a62742ddbf4"
+bytes = 768050239
+
+[[files]]
+path = "USCensus/USCensus_3.csv.bz2"
+blake3 = "1aa8d606e6e110b9636c321b23a16a3468b217f7892dac5078de8076c7d13ab6"
+bytes = 768045771
+
+[[files]]
+path = "Uberlandia/Uberlandia_1.csv.bz2"
+blake3 = "1a5690988afd745c78cbf74f4ada9d614a5e1d1e1c8943d5a07712362ac7c86a"
+bytes = 405669478
+
+[[files]]
+path = "Wins/Wins_1.csv.bz2"
+blake3 = "b9800987062a7ce9628c9cfe94842fbc9b2f277a516ab32cbc1db715314ff390"
+bytes = 131362720
+
+[[files]]
+path = "Wins/Wins_2.csv.bz2"
+blake3 = "486a6f79a303fc0be0915d239ec148c3f3028c2ff1c27f71954107cba4abf121"
+bytes = 189996123
+
+[[files]]
+path = "Wins/Wins_3.csv.bz2"
+blake3 = "d579076eeb597a48dc9d256bf6bb6a3b5de9e181aac73317ab45da320f507ea1"
+bytes = 190065449
+
+[[files]]
+path = "Wins/Wins_4.csv.bz2"
+blake3 = "f30f615e0a1060a9ccfcd8dda15d87a9b240af93cecb42599f69d605076013ec"
+bytes = 190096489
+
+[[files]]
+path = "YaleLanguages/YaleLanguages_1.csv.bz2"
+blake3 = "f4fd638205dca30417a02402928c4abfe7200cb8bf05be5edcaac84c2b292756"
+bytes = 12421515
+
+[[files]]
+path = "YaleLanguages/YaleLanguages_2.csv.bz2"
+blake3 = "243a5152ae91caede55ef8492da44eae92d23de48ecd02f4ef96eca01ffc3a6a"
+bytes = 12424548
+
+[[files]]
+path = "YaleLanguages/YaleLanguages_3.csv.bz2"
+blake3 = "fd0eb6cf570092257c60e37fbcf70850e4d3c8434145284d1a46e00f4e3b7fa6"
+bytes = 20565528
+
+[[files]]
+path = "YaleLanguages/YaleLanguages_4.csv.bz2"
+blake3 = "f82fab24949bfbd2e19eecf628dc15bf34befb090103e75cd30cad37037d1abc"
+bytes = 18736764
+
+[[files]]
+path = "YaleLanguages/YaleLanguages_5.csv.bz2"
+blake3 = "ce2495b786bd1ee9ecfbc01c3a2eee2c96887f77f318a5f796d965a5f951554c"
+bytes = 18731853

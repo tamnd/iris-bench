@@ -46,7 +46,11 @@ Silesia is public domain for benchmarking purposes and is mirrored. The enwik8 a
 
 ## Public BI
 
-The Public BI benchmark's data comes from Tableau Public workbooks. It is fetched from the published location and not redistributed. The 36 dataset subset used by the encoding literature is defined as a subset object with its own digest, so that a result labelled with that subset is unambiguous about which 36.
+The Public BI benchmark's data comes from Tableau Public workbooks. It is fetched from the published location and not redistributed. The 36 dataset subset used by the encoding literature is its own corpus with its own identity digest, so that a result labelled with that subset is unambiguous about which 36.
+
+The two are `public-bi`, which is all 206 tables across the 46 workbooks, and `public-bi-36`, which is the 36 tables FastLanes measures, one from each of 36 workbooks. `public-bi-36` declares itself part of `public-bi` and CI checks that every one of its tables is in the full set at the same digest, so the subset cannot drift from the set it names without the build saying so.
+
+Neither may be reported as the other, and that is code rather than a rule. `bench_report::Selection` reads which of the two a workload is from its identifier, and the name it produces always says which, so there is no row that reads as Public BI without saying which Public BI. A page holding rows from both prints, under the table, that they are not comparable with each other. The gap between a ratio over the subset and one over the full set is large enough to reverse an ordering, and the subset is the one most of the published numbers in this area are taken over.
 
 ## Publishing
 

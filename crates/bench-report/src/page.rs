@@ -12,6 +12,7 @@
 
 use std::fmt::Write as _;
 
+use crate::selection::Selection;
 use crate::tpc::{self, Cited, Family, WordingError};
 
 /// One measurement on a page.
@@ -25,6 +26,8 @@ pub struct Row {
     pub value: String,
     /// Which family the workload belongs to, worked out from its name rather than declared.
     family: Family,
+    /// Which part of its corpus it was measured over, for the corpora that have parts.
+    selection: Selection,
     /// Where the number came from, when it is not one of ours.
     origin: Option<String>,
 }
@@ -43,11 +46,13 @@ impl Row {
     ) -> Result<Self, WordingError> {
         let workload = workload.into();
         let family = tpc::check(&workload)?;
+        let selection = Selection::of(&workload);
         Ok(Self {
             workload,
             system: system.into(),
             value: value.into(),
             family,
+            selection,
             origin: None,
         })
     }
@@ -72,11 +77,13 @@ impl Row {
                 return Err(WordingError::OfficialTpcResult { workload, origin });
             }
         };
+        let selection = Selection::of(&workload);
         Ok(Self {
             workload,
             system: system.into(),
             value: value.into(),
             family,
+            selection,
             origin: Some(origin),
         })
     }
@@ -104,11 +111,22 @@ impl Row {
     }
 
     /// How this row's workload is named in output.
+    ///
+    /// Whatever qualifies the workload is inside the name rather than beside it. A TPC workload is
+    /// named as derived from its specification and a corpus that comes in parts is named with the
+    /// part, so a name lifted out of this table and pasted somewhere else takes its qualifiers
+    /// along. That is the failure the qualifiers exist to prevent, and a column heading does not
+    /// survive being quoted.
     #[must_use]
     pub fn label(&self) -> String {
-        match self.family.label() {
-            "" => self.workload.clone(),
-            qualified => format!("{} ({qualified})", self.workload),
+        let qualifiers: Vec<&str> = [self.family.label(), self.selection.label()]
+            .into_iter()
+            .filter(|part| !part.is_empty())
+            .collect();
+        if qualifiers.is_empty() {
+            self.workload.clone()
+        } else {
+            format!("{} ({})", self.workload, qualifiers.join(", "))
         }
     }
 }
@@ -138,6 +156,9 @@ impl Page {
     }
 
     /// Every notice this page's rows require, once each and in a stable order.
+    ///
+    /// Gathered from the rows rather than set on the page, so a notice is a consequence of what is
+    /// on the page instead of something whoever built it had to think of.
     #[must_use]
     pub fn notices(&self) -> Vec<&'static str> {
         let mut notices: Vec<&'static str> = Vec::new();
@@ -148,7 +169,25 @@ impl Page {
                 notices.push(notice);
             }
         }
+        if self.mixes_parts() {
+            notices.push(Selection::mixed_notice());
+        }
         notices
+    }
+
+    /// Whether two rows here were measured over different parts of the same corpus.
+    ///
+    /// A compression ratio over the Public BI subset and one over the full set can sit next to each
+    /// other legitimately, and a reader will still read the pair as a comparison unless told
+    /// otherwise. So they are allowed on one page and the page says what they are.
+    fn mixes_parts(&self) -> bool {
+        self.rows.iter().any(|row| {
+            row.selection.corpus().is_some_and(|corpus| {
+                self.rows.iter().any(|other| {
+                    other.selection.corpus() == Some(corpus) && other.selection != row.selection
+                })
+            })
+        })
     }
 
     /// The page as text, with its notices under it.
@@ -182,6 +221,38 @@ impl Page {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_public_bi_row_says_which_public_bi_it_is() {
+        let row = Row::measured("public-bi-36", "iris", "4.1x").unwrap();
+        assert_eq!(row.label(), "public-bi-36 (36 table subset)");
+        let whole = Row::measured("public-bi", "iris", "3.8x").unwrap();
+        assert_eq!(whole.label(), "public-bi (all 206 tables)");
+    }
+
+    #[test]
+    fn a_page_holding_both_parts_says_they_are_not_comparable() {
+        let mut page = Page::new("Compression ratio");
+        page.push(Row::measured("public-bi", "iris", "3.8x").unwrap());
+        page.push(Row::measured("public-bi-36", "iris", "4.1x").unwrap());
+        assert!(page.render().contains("not comparable"));
+    }
+
+    #[test]
+    fn a_page_holding_one_part_twice_says_nothing_extra() {
+        let mut page = Page::new("Compression ratio");
+        page.push(Row::measured("public-bi-36", "iris", "4.1x").unwrap());
+        page.push(Row::measured("public-bi-36", "parquet", "2.9x").unwrap());
+        assert!(page.notices().is_empty());
+    }
+
+    #[test]
+    fn a_row_can_carry_a_family_and_a_part_at_once() {
+        // Neither qualifier is allowed to displace the other, because each of them is the answer to
+        // a different question a reader would otherwise get wrong.
+        let row = Row::measured("tpch-sf20", "iris", "1.1 GB/s").unwrap();
+        assert!(row.label().contains("derived from TPC-H"));
+    }
 
     #[test]
     fn a_page_carrying_a_tpc_number_carries_the_notice() {
