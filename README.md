@@ -30,11 +30,13 @@ Public BI has been both the design input and the evaluation set for six years of
 
 ## Status
 
-Pre-alpha. B0 is done as of `v0.1.0`, so the measuring apparatus exists and the benchmarks do not. Milestones B0 through B8 are [public](https://github.com/tamnd/iris-bench/milestones) with one issue per exit gate.
+Pre-alpha. B0 is done as of `v0.1.0` and B1 as of `v0.2.0`, so the measuring apparatus and the data exist and the benchmarks do not. Milestones B0 through B8 are [public](https://github.com/tamnd/iris-bench/milestones) with one issue per exit gate.
 
 What B0 established is in `docs/ROADMAP.md` under that milestone, and the short version is that this fleet can measure, on one machine, for ratios always and for durations under a gate. The noise floor is 1.05% on the one eligible role and over two percent everywhere else, and the harness adds 41.1 ns to a sample, which is under one percent of anything longer than 4.1 microseconds. `iris-bench check`, `noise`, `overhead`, `resident` and `corpus` run today. Nothing else does.
 
-B1 is in progress and is the corpora. ClickBench, TPC-H at scale factor 1 and 20, Public BI in both the full 206 table set and the 36 table subset, and Silesia and enwik8 are pinned and reproduce, some by download, the TPC-H pair from `dbgen`, and the last two from a mirror because their original hosting has moved more than once.
+B1 is done and is the corpora. ClickBench, TPC-H at scale factor 1 and 20, Public BI in both the full 206 table set and the 36 table subset, and Silesia and enwik8 are pinned and reproduce, some by download, the TPC-H pair from `dbgen`, and the last two from a mirror because their original hosting has moved more than once. Every one of them was fetched or generated end to end through the real command rather than checked on paper, which is 43 GB of Public BI and 22 GB of TPC-H among other things.
+
+A digest mismatch is a hard failure with no override, and the absence of an override is enforced by a check that reads the four files a corpus's bytes pass through rather than left as an intention. Generated corpora are pinned to the platforms they have actually been produced on, and generating anywhere else is refused with a reason instead of attempted.
 
 B0 through B4 need no `iris` code to exist, which is deliberate. If `iris` is never built, the reproduction of the published figures and the storage tier study still stand on their own.
 

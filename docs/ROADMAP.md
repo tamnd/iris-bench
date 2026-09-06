@@ -32,6 +32,18 @@ Manifests, fetching, generation, verification and the content addressed store.
 
 **Gate.** ClickBench `hits`, TPC-H at scale factors 1 and 20, Public BI in both the 36 dataset subset and the full set, Silesia and enwik8 all fetch or generate to matching digests. The assertions in the manifests pass, so ClickBench is 99,997,497 rows across 105 columns or the manifest is wrong. Generated corpora produce identical digests on Linux x86-64, Linux arm64 and macOS, or the divergence is documented and the corpus is redefined as platform pinned. Every mirrored corpus has a licence note and CI enforces it. A digest mismatch on fetch is a hard failure that prints both digests.
 
+### The B1 outcome
+
+Every gate above is met, and three of them turned out to be worth more than they read like on paper. Measured facts are in `CORPORA.md`, this is what follows from them.
+
+**Every corpus was fetched or generated end to end rather than checked on paper.** That is 43,334,957,146 bytes of Public BI across 206 files, 22.5 GB of TPC-H at scale factor 20, 13.8 GiB of ClickBench, and Silesia and enwik8 from the mirror. The reason to say it out loud is that a manifest whose digests were transcribed from somewhere else is a manifest that has never been tested, and the failure mode of one is that it looks exactly like a manifest that has. Public BI paid this back immediately: 62 of its 206 files were already in the store when the full set was fetched, 36 from the subset and 26 as duplicates of tables arriving earlier in the same run, which is the content addressing doing what it was built for rather than a case anybody handled.
+
+**Three platforms produce identical digests and the fourth cannot, for a reason in the tool.** TPC-H scale factor 1 comes out byte for byte the same on macOS on Apple silicon, Linux on x86-64 and Linux on arm64. On Windows it cannot, because `dbgen` opens its output with `fopen(path, "w")` and the C runtime there rewrites every newline. So the corpus is platform pinned, as the gate allows, and `[generator] platforms` is the pin: a required list of the operating systems the bytes have actually been produced on, checked before the generator starts. It blocks the comparison at its source rather than at the report, because a machine that cannot produce the corpus cannot measure on it.
+
+**No override means a check that reads the source, not a rule somebody remembers.** A digest mismatch was already a hard failure and nothing skipped it, but that was true because the code happened to be written that way. `check_digest_is_not_overridable` now fails the build on an override name, a read of the environment, or an insert that does not name the pinned digest, anywhere in the four files a corpus's bytes pass through. The failure path is tested through a real HTTP server serving wrong bytes at the right length, and through the whole `iris-bench corpus` command against a generator that writes the wrong thing.
+
+**What is still not settled.** Scale factor 20 has not been generated on arm64 Linux, because no machine in this fleet has 22 GiB free on that architecture, so its cross-platform evidence is two platforms rather than three and the third is inferred from scale factor 1 rather than measured. enwik9 is not mirrored, because nothing measures it yet. And the mirror is a release on this repository, which makes a mirror that has stopped working and a repository that has stopped existing the same event, which is a property worth having and not the same thing as durability.
+
 ## B2, drivers and the first real comparison
 
 The runner, the store, and drivers for DuckDB, DataFusion and the arrow-rs Parquet reader. Still no `iris`.
