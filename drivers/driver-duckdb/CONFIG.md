@@ -16,13 +16,19 @@ DuckDB is linked in bundled, so the version under test is fixed by this workspac
 
 `preserve_insertion_order` is set to false. This is in DuckDB's own performance guide as the first thing to change for large imports, and it lowers memory use on load. It means a query without an `ORDER BY` may come back in a different order, which costs nothing here because the canonical result form sorts rows that the query did not order.
 
-Data is loaded with `CREATE OR REPLACE TABLE ... AS SELECT * FROM read_parquet(...)` or `read_csv(...)`, into a persistent database file rather than an in-memory one. That matches DuckDB's published ClickBench entry and the import guidance, and it is also a configuration somebody actually deploys.
+Data is loaded with `CREATE OR REPLACE TABLE ... AS SELECT ... FROM read_parquet(...)` or `read_csv(...)`, into a persistent database file rather than an in-memory one. That matches DuckDB's published ClickBench entry and the import guidance, and it is also a configuration somebody actually deploys.
+
+The select list in that statement comes from the workload and is not written here. For ClickBench it is the one out of DuckDB's published `load` script, which is `* REPLACE (make_date(EventDate) AS EventDate, epoch_ms(EventTime * 1000) AS EventTime, epoch_ms(ClientEventTime * 1000) AS ClientEventTime, epoch_ms(LocalEventTime * 1000) AS LocalEventTime)`. The corpus stores `EventDate` as an unsigned sixteen bit count of days and those three columns as plain Unix seconds with no logical type on them, so without the conversion `EventDate >= '2013-07-01'` compares a number against a string and `EXTRACT(HOUR FROM EventTime)` has nothing to take an hour of. `bench-workload` carries the script with its digest and applies the same rule to every driver.
+
+Applying it here, at load, rather than in a view, is DuckDB's published choice and not ours. It means the conversion is paid once and the table holds the converted types, which is why the load timing for ClickBench is the number DuckDB's own entry reports.
 
 ## Deviations
 
 Reading the files in place, as a view over `read_parquet`, would be a legitimate thing to measure and is not what happens here. It moves the work from the load phase into the run phase, and DuckDB's own published entry loads into a table, so a view would be measuring a configuration DuckDB does not put forward. The load timing is where this choice is visible, which is the reason that phase is timed separately.
 
 `DECIMAL` results are rendered as doubles. DuckDB computes TPC-H money aggregates in exact decimal arithmetic and the other systems in the matrix return the same aggregate as a double, so an exact rendering would be a comparison only one of the three could pass. The canonical form rounds floats to six significant digits anyway, which is well inside the spread of a decimal and a double summing the same column. This is a deviation from what DuckDB actually computed and it is recorded as one.
+
+`binary_as_string` is not passed to `read_parquet`, and DuckDB's published load script passes it. On the ClickBench corpus this repository pins, the option changes nothing: every byte array column in that file already carries the `String` logical type and the `UTF8` converted type, which was checked by reading the file's footer rather than assumed. Carrying the option anyway would be the more faithful thing to do and it is worth revisiting if a corpus ever arrives whose string columns lack those annotations, because then this would be the difference between reading a column as text and reading it as bytes.
 
 CSV and pipe separated files are loaded with DuckDB's schema auto-detection rather than an explicit column list. That means the column types come from DuckDB's sniffer and not from the workload, and two systems could disagree about a result because they inferred a column differently rather than because they computed differently. This is a real gap and it closes when the workloads land with their own schemas.
 

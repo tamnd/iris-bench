@@ -48,6 +48,7 @@
 //!     table: "hits".to_owned(),
 //!     files: vec![std::path::PathBuf::from("hits.parquet")],
 //!     format: Format::Parquet,
+//!     projection: None,
 //! })?;
 //! let (answer, _nanoseconds) = session.query(&Query {
 //!     id: "q0".to_owned(),

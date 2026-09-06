@@ -167,6 +167,16 @@ impl Driver for DataFusion {
         let options = options(load)?;
         let urls = urls(&load.files)?;
 
+        // A view over the files where the workload has a select list, and the files under their own
+        // name where it has not. Upstream's setup registers the raw files as hits_raw and puts the
+        // conversion in a view called hits, so the conversion is paid on every scan rather than
+        // once at load, and that is the shape of DataFusion's published entry. Materialising it
+        // here instead would move work out of the run phase and produce a number nobody published.
+        let raw = match load.projection {
+            Some(_) => format!("{}_raw", load.table),
+            None => load.table.clone(),
+        };
+
         // Registered where the files lie rather than copied into anything. See CONFIG.md: this is
         // DataFusion's published configuration, and it means the load phase records the schema
         // inference and nothing else while the run phase carries every scan.
@@ -176,7 +186,14 @@ impl Driver for DataFusion {
                 .infer_schema(&context.state())
                 .await?;
             let table = ListingTable::try_new(config)?;
-            context.register_table(load.table.as_str(), Arc::new(table))?;
+            context.register_table(raw.as_str(), Arc::new(table))?;
+            if let Some(projection) = &load.projection {
+                let statement = format!(
+                    "CREATE VIEW {} AS SELECT {projection} FROM {raw}",
+                    load.table
+                );
+                context.sql(&statement).await?.collect().await?;
+            }
             Ok(())
         });
         registered
@@ -459,6 +476,7 @@ mod tests {
                 table: "numbers".to_owned(),
                 files: vec![table],
                 format: Format::Separated { separator: '|' },
+                projection: None,
             })
             .unwrap();
         let (answer, _) = session
@@ -491,6 +509,7 @@ mod tests {
                 table: "numbers".to_owned(),
                 files: vec![first, second],
                 format: Format::Separated { separator: '|' },
+                projection: None,
             })
             .unwrap();
         let answer = driver
@@ -528,6 +547,7 @@ mod tests {
                 table: "numbers".to_owned(),
                 files: vec![file.clone()],
                 format: Format::Parquet,
+                projection: None,
             })
             .unwrap();
         let answer = driver
@@ -541,6 +561,54 @@ mod tests {
         assert_eq!(answer.body, "3\t6\n");
         // Registered rather than ingested, so the file the corpus named is still the only copy.
         assert!(file.exists());
+    }
+
+    #[test]
+    fn a_projection_becomes_a_view_over_the_raw_files() {
+        // Both halves matter. The queries have to see the converted column, and the raw files have
+        // to still be reachable under their own name, because the published setup keeps hits_raw
+        // and a driver that folded the two together would be paying the conversion somewhere other
+        // than where DataFusion's own entry pays it.
+        let scratch = tempfile::tempdir().unwrap();
+        let file = scratch.path().join("days.parquet");
+        let mut driver = prepared(scratch.path());
+        driver
+            .run(&Query {
+                id: "write".to_owned(),
+                sql: format!(
+                    "COPY (SELECT 1 AS n UNION ALL SELECT 2) TO '{}' STORED AS PARQUET",
+                    file.display()
+                ),
+                ordered: true,
+            })
+            .unwrap();
+
+        driver
+            .load(&Load {
+                table: "days".to_owned(),
+                files: vec![file],
+                format: Format::Parquet,
+                projection: Some("* EXCEPT (n), CAST(CAST(n AS INTEGER) AS DATE) AS n".to_owned()),
+            })
+            .unwrap();
+
+        let answer = driver
+            .run(&Query {
+                id: "q0".to_owned(),
+                sql: "SELECT n FROM days ORDER BY n".to_owned(),
+                ordered: true,
+            })
+            .unwrap();
+        assert_eq!(answer.body, "1970-01-02\n1970-01-03\n");
+
+        let raw = driver
+            .run(&Query {
+                id: "q1".to_owned(),
+                sql: "SELECT n FROM days_raw ORDER BY n".to_owned(),
+                ordered: true,
+            })
+            .unwrap();
+        assert_eq!(raw.body, "1\n2\n");
     }
 
     #[test]

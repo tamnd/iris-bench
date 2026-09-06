@@ -258,6 +258,7 @@ mod tests {
             table: "hits".to_owned(),
             files: vec![PathBuf::from("hits.parquet")],
             format: Format::Parquet,
+            projection: None,
         }
     }
 

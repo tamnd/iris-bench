@@ -103,6 +103,13 @@ impl Driver for ArrowParquet {
                  reader rather than an engine",
             ));
         }
+        if load.projection.is_some() {
+            return Err(DriverError::unsupported(
+                load.table.clone(),
+                "this driver reads the columns the files store and has no SQL to apply a select \
+                 list with, so a workload that needs one has to be answered by an engine",
+            ));
+        }
         // Every file is opened and its footer read, so that a file which is not Parquet or whose
         // schema disagrees with the rest fails here rather than part way through a measurement.
         let mut schema: Option<Schema> = None;
@@ -515,6 +522,7 @@ mod tests {
                 table: "numbers".to_owned(),
                 files,
                 format: Format::Parquet,
+                projection: None,
             })
             .unwrap();
         driver
@@ -533,6 +541,7 @@ mod tests {
                 table: "numbers".to_owned(),
                 files: vec![file],
                 format: Format::Parquet,
+                projection: None,
             })
             .unwrap();
         let (answer, _) = session
@@ -663,6 +672,29 @@ mod tests {
                 table: "numbers".to_owned(),
                 files: vec![text],
                 format: Format::Separated { separator: '|' },
+                projection: None,
+            })
+            .unwrap_err();
+        assert!(matches!(error, DriverError::Unsupported { .. }), "{error}");
+    }
+
+    #[test]
+    fn a_select_list_is_refused_rather_than_ignored() {
+        // Nothing hands this driver a projection today and the workload says in one place why not.
+        // Ignoring one would still be the wrong answer, because a reader that quietly skipped the
+        // conversion every other system applied would be answering a different question and
+        // reporting a time for it.
+        let scratch = tempfile::tempdir().unwrap();
+        let file = written(scratch.path(), "numbers.parquet", &[1, 2, 3]);
+
+        let mut driver = ArrowParquet::new();
+        driver.prepare(&setup(scratch.path())).unwrap();
+        let error = driver
+            .load(&Load {
+                table: "numbers".to_owned(),
+                files: vec![file],
+                format: Format::Parquet,
+                projection: Some("* REPLACE (make_date(n) AS n)".to_owned()),
             })
             .unwrap_err();
         assert!(matches!(error, DriverError::Unsupported { .. }), "{error}");
@@ -681,6 +713,7 @@ mod tests {
                 table: "numbers".to_owned(),
                 files: vec![fake],
                 format: Format::Parquet,
+                projection: None,
             })
             .unwrap_err();
         assert!(error.to_string().contains("numbers.parquet"), "{error}");

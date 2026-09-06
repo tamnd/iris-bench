@@ -22,6 +22,31 @@
 //! and it is exactly the kind of gap somebody closes by hand in a hurry and then nobody can tell
 //! whether the number came from `ClickBench`'s query or from ours.
 //!
+//! # Why the setup files are carried as well
+//!
+//! The corpus does not store every column as the type the queries ask about. `EventDate` is an
+//! unsigned sixteen bit count of days, and `EventTime`, `ClientEventTime` and `LocalEventTime` are
+//! plain Unix seconds in a signed sixty four bit integer with no logical type on them. Read as they
+//! lie, `EventDate >= '2013-07-01'` compares a number against a string and `toHour(EventTime)`
+//! has nothing to take an hour of. Every published entry converts those four columns on the way in,
+//! and the conversion is part of the benchmark's setup rather than something a driver should
+//! invent, so it is carried here with the queries and checked against a digest the same way.
+//!
+//! The two systems do not convert them the same way and they do not pay for it at the same time.
+//! `DuckDB` publishes a load that materialises all four into a real table. `DataFusion` publishes a
+//! view over the raw files that converts only `EventDate` and leaves the three timestamps alone,
+//! which is why its own query file spells `to_timestamp_seconds("EventTime")` by hand where the
+//! reference does not. Handing both of them one projection would be this repository configuring a
+//! benchmark rather than running the one its authors published, and it would hide exactly the
+//! difference between loading and reading in place that the three phases exist to show.
+//!
+//! One thing in those files is deliberately not carried. Both of them pass `binary_as_string` to
+//! the Parquet reader, and on the corpus this repository pins that option changes nothing, because
+//! every byte array column in that file already carries the `String` logical type. That was checked
+//! by reading the file's footer rather than assumed, and it is written down in both drivers'
+//! `CONFIG.md` so that a corpus which one day arrives without those logical types is a thing
+//! somebody looks at again instead of a thing that quietly answers a different question.
+//!
 //! # What this module does not do
 //!
 //! It does not rewrite anything itself. If a system needs a rewrite that upstream has not
@@ -62,6 +87,23 @@ const CLICKHOUSE_SQL: &str = include_str!("../queries/clickhouse.sql");
 const DUCKDB_SQL: &str = include_str!("../queries/duckdb.sql");
 const DATAFUSION_SQL: &str = include_str!("../queries/datafusion.sql");
 
+const DUCKDB_LOAD: &str = include_str!("../setup/duckdb.load");
+const DATAFUSION_CREATE: &str = include_str!("../setup/datafusion.create.sql");
+
+/// The select list out of the `DuckDB` load script, character for character.
+///
+/// A test asserts that this is a substring of the file above, so a rewrite upstream fails the build
+/// here rather than turning into a conversion nobody published.
+const DUCKDB_PROJECTION: &str = "* REPLACE (
+    make_date(EventDate) AS EventDate,
+    epoch_ms(EventTime * 1000) AS EventTime,
+    epoch_ms(ClientEventTime * 1000) AS ClientEventTime,
+    epoch_ms(LocalEventTime * 1000) AS LocalEventTime)";
+
+/// The select list out of the `DataFusion` view, character for character. Same test, same reason.
+const DATAFUSION_PROJECTION: &str = "* EXCEPT (\"EventDate\"),
+       CAST(CAST(\"EventDate\" AS INTEGER) AS DATE) AS \"EventDate\"";
+
 impl Dialect {
     /// The file, verbatim.
     #[must_use]
@@ -98,6 +140,55 @@ impl Dialect {
         }
     }
 
+    /// The setup script this system publishes alongside its queries, verbatim, or `None` if
+    /// carrying it would say nothing.
+    ///
+    /// `ClickHouse` returns `None`. Its published setup declares all one hundred and five columns
+    /// with their types and loads the text distribution rather than the Parquet one, so there is no
+    /// projection in it to take, and no driver here speaks that dialect anyway.
+    #[must_use]
+    pub fn setup(self) -> Option<&'static str> {
+        match self {
+            Self::ClickHouse => None,
+            Self::DuckDb => Some(DUCKDB_LOAD),
+            Self::DataFusion => Some(DATAFUSION_CREATE),
+        }
+    }
+
+    /// Where the setup script came from and what it hashed to when it was fetched.
+    #[must_use]
+    pub fn setup_source(self) -> Option<Source> {
+        match self {
+            Self::ClickHouse => None,
+            Self::DuckDb => Some(Source {
+                url: "https://raw.githubusercontent.com/ClickHouse/ClickBench/main/duckdb/load"
+                    .to_owned(),
+                fetched: FETCHED.to_owned(),
+                blake3: "229bc0292eb5b8da4254d80d4b73b4a17d2372c0343565b40fa50add2b985960".to_owned(),
+            }),
+            Self::DataFusion => Some(Source {
+                url: "https://raw.githubusercontent.com/ClickHouse/ClickBench/main/datafusion/create.sql"
+                    .to_owned(),
+                fetched: FETCHED.to_owned(),
+                blake3: "9bdce79e976a1b0bef309813535f70a240d737e3678440a8b199c0aaace10f78".to_owned(),
+            }),
+        }
+    }
+
+    /// What this system selects out of the corpus files when it takes the table in.
+    ///
+    /// The text between `SELECT` and `FROM` in the setup script above, and nothing more. See the
+    /// module documentation for why the two systems differ and why neither is corrected to match
+    /// the other.
+    #[must_use]
+    pub fn projection(self) -> Option<&'static str> {
+        match self {
+            Self::ClickHouse => None,
+            Self::DuckDb => Some(DUCKDB_PROJECTION),
+            Self::DataFusion => Some(DATAFUSION_PROJECTION),
+        }
+    }
+
     /// What this dialect is called in a result row.
     #[must_use]
     pub fn name(self) -> &'static str {
@@ -131,6 +222,25 @@ pub fn dialect(driver: &str) -> Option<Dialect> {
         "duckdb" => Some(Dialect::DuckDb),
         "datafusion" | "arrow-parquet" => Some(Dialect::DataFusion),
         _ => None,
+    }
+}
+
+/// What a driver selects out of the corpus files, by the name the driver calls itself.
+///
+/// Separate from [`dialect`] rather than taken from it, because the two questions have different
+/// answers for `arrow-parquet`. It gets `DataFusion`'s queries, for the reason above, and it gets no
+/// projection, because a projection is what a system applies while it builds a table and this one
+/// builds nothing. It reads the files where they lie and answers none of the forty three, so there
+/// is no answer a conversion could change. Handing it one anyway would only mean handing it
+/// something it has to refuse, and refusing at load would cost the record of forty three
+/// unsupported queries that is the only thing running it against this workload produces.
+///
+/// That is a decision and it is written here rather than left in whichever driver noticed first.
+#[must_use]
+pub fn projection(driver: &str) -> Option<&'static str> {
+    match driver {
+        "arrow-parquet" => None,
+        _ => dialect(driver).and_then(Dialect::projection),
     }
 }
 
@@ -190,6 +300,75 @@ mod tests {
             })
             .collect();
         assert!(drifted.is_empty(), "{}", drifted.join("\n"));
+    }
+
+    #[test]
+    fn the_setup_scripts_are_the_ones_that_were_fetched() {
+        // Same check as the one above and it matters for the same reason. A projection is carried
+        // here because it is what the publishers run, so a projection whose script drifted is a
+        // projection this repository made up.
+        let drifted: Vec<String> = ALL
+            .into_iter()
+            .filter_map(|dialect| {
+                let text = dialect.setup()?;
+                let source = dialect.setup_source()?;
+                let digest = blake3::hash(text.as_bytes()).to_hex().to_string();
+                (digest != source.blake3).then(|| {
+                    format!(
+                        "the {} setup script hashes to {digest} and the source says {}",
+                        dialect.name(),
+                        source.blake3,
+                    )
+                })
+            })
+            .collect();
+        assert!(drifted.is_empty(), "{}", drifted.join("\n"));
+    }
+
+    #[test]
+    fn a_projection_is_taken_out_of_the_script_and_not_written_here() {
+        // The link that makes the constants above quotations rather than opinions. If upstream
+        // spells the conversion differently tomorrow, the digest test fails first and then this one
+        // fails until somebody has copied the new text across by hand.
+        for dialect in [Dialect::DuckDb, Dialect::DataFusion] {
+            let script = dialect.setup().expect("both of these publish one");
+            let projection = dialect.projection().expect("and both of them convert");
+            assert!(
+                script.contains(projection),
+                "the {} projection is not in the {} script it says it came from",
+                dialect.name(),
+                dialect.name(),
+            );
+        }
+    }
+
+    #[test]
+    fn the_two_systems_do_not_convert_the_same_columns() {
+        // Written down as a test because it is the thing somebody will want to tidy up. DuckDB
+        // materialises all four columns at load and DataFusion converts one in a view and leaves
+        // the three timestamps for its queries to handle, and making those two agree would be this
+        // repository configuring the benchmark instead of running it.
+        let duckdb = Dialect::DuckDb.projection().unwrap();
+        let datafusion = Dialect::DataFusion.projection().unwrap();
+        for column in ["EventTime", "ClientEventTime", "LocalEventTime"] {
+            assert!(duckdb.contains(column), "DuckDB converts {column}");
+            assert!(
+                !datafusion.contains(column),
+                "DataFusion leaves {column} alone"
+            );
+        }
+        assert!(duckdb.contains("EventDate") && datafusion.contains("EventDate"));
+    }
+
+    #[test]
+    fn the_reference_reader_is_given_no_projection() {
+        // It gets DataFusion's queries and not DataFusion's setup, which is the one place those two
+        // answers come apart. See the note on projection().
+        assert_eq!(dialect("arrow-parquet"), Some(Dialect::DataFusion));
+        assert_eq!(projection("arrow-parquet"), None);
+        assert_eq!(projection("datafusion"), Dialect::DataFusion.projection());
+        assert_eq!(projection("duckdb"), Dialect::DuckDb.projection());
+        assert_eq!(projection("nothing-by-that-name"), None);
     }
 
     #[test]

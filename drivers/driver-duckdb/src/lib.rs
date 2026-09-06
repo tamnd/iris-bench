@@ -100,12 +100,19 @@ impl Driver for DuckDb {
                 escaped(separator)
             ),
         };
+        // The workload's select list where there is one, and everything as it lies where there is
+        // not. A corpus that stores a column as something other than what the queries ask about is
+        // converted on the way in by whoever published the setup, and this driver applies that
+        // rather than deciding for itself what a column should have been. See CONFIG.md.
+        let selected = load.projection.as_deref().unwrap_or("*");
         // CREATE TABLE AS rather than a view over the files. Reading in place would be a legitimate
         // thing for a driver to do, but it would move the work into the run phase, and DuckDB's own
-        // published ClickBench entry loads into a table. The load timing is where that choice shows
-        // up, which is the whole reason the phase exists.
+        // published ClickBench entry loads into a table. Its published setup also materialises the
+        // conversion above at this point rather than leaving it to the queries, so putting the
+        // select list here is what makes the load timing the number that entry reports. The load
+        // timing is where that choice shows up, which is the whole reason the phase exists.
         let statement = format!(
-            "CREATE OR REPLACE TABLE {} AS SELECT * FROM {reader}",
+            "CREATE OR REPLACE TABLE {} AS SELECT {selected} FROM {reader}",
             load.table
         );
         connection
@@ -306,6 +313,7 @@ mod tests {
                 table: "numbers".to_owned(),
                 files: vec![table],
                 format: Format::Separated { separator: '|' },
+                projection: None,
             })
             .unwrap();
         let (answer, _) = session
@@ -321,6 +329,42 @@ mod tests {
         assert!(phases.prepare > 0.0 && phases.load > 0.0 && phases.run > 0.0);
         assert_eq!(phases.tables, 1);
         assert_eq!(phases.queries, 1);
+    }
+
+    #[test]
+    fn a_projection_is_applied_while_the_table_is_built() {
+        // The published ClickBench setup for DuckDB converts four columns in the INSERT rather than
+        // in the queries, so the converted type has to be what the table itself holds. Asking the
+        // catalogue is the only way to tell that apart from a conversion that happened per query
+        // and gave the same answer.
+        let scratch = tempfile::tempdir().unwrap();
+        let table = scratch.path().join("numbers.csv");
+        std::fs::write(&table, "1|one\n2|two\n").unwrap();
+
+        let mut driver = DuckDb::new();
+        let mut session = Session::new(&mut driver);
+        session.prepare(&setup(scratch.path())).unwrap();
+        session
+            .load(&Load {
+                table: "numbers".to_owned(),
+                files: vec![table],
+                format: Format::Separated { separator: '|' },
+                projection: Some(
+                    "* REPLACE (make_date(CAST(column0 AS INTEGER)) AS column0)".to_owned(),
+                ),
+            })
+            .unwrap();
+
+        let (answer, _) = session
+            .query(&Query {
+                id: "q0".to_owned(),
+                sql: "SELECT data_type FROM information_schema.columns \
+                      WHERE table_name = 'numbers' AND column_name = 'column0'"
+                    .to_owned(),
+                ordered: false,
+            })
+            .unwrap();
+        assert_eq!(answer.body, "DATE\n");
     }
 
     #[test]
