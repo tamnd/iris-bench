@@ -8,7 +8,7 @@ Everything this repository measures is measured on data that belongs to someone 
 
 **Fetch.** The corpus is downloaded from its canonical location at run time, verified against a recorded digest, and never redistributed by us. ClickBench, the Join Order Benchmark's IMDB dump, Public BI, and the h2o benchmark data are here.
 
-**Mirror.** The licence permits redistribution, and mirroring is the difference between a reproducible result and a broken link in three years. Silesia and enwik8 and enwik9 are here. Every mirrored corpus carries a licence note in its manifest, and CI fails if one is missing.
+**Mirror.** The licence permits redistribution, and mirroring is the difference between a reproducible result and a broken link in three years. Silesia and enwik8 are here. Every mirrored corpus carries a licence note in its manifest saying what permits the redistribution, and every one of its files says where this repository serves it from, and CI fails if either is missing.
 
 The default is fetch. Mirroring requires reading the licence and writing down what it permits.
 
@@ -42,7 +42,13 @@ The IMDB data underneath it comes from IMDB's non-commercial datasets. It is fet
 
 ## Compression corpora
 
-Silesia is public domain for benchmarking purposes and is mirrored. The enwik8 and enwik9 files come from a Wikipedia dump and inherit its licence, which permits redistribution with attribution, so they are mirrored with the attribution in the manifest.
+Silesia and enwik8 are the two mirrored corpora, and they are mirrored for the same reason: both are served from personal pages that have moved host more than once, and a benchmark whose input is a dead link stops being reproducible on somebody else's schedule. The mirror is a release on this repository with one asset per file, so a mirror that has stopped working and a repository that has stopped existing are the same event. Every file is still pinned by digest and checked on arrival, so mirroring changes who serves the bytes and changes nothing about what is believed.
+
+Silesia does not have one licence, it has twelve. Three of its files are public domain texts, one is GPL source, two are binaries under the MPL and the LGPL whose corresponding source is still published by their projects, and the rest are public scientific and reference data. All of them permit redistribution unmodified, which is what happens here, and `corpora/silesia/manifest.toml` says which is which rather than flattening it to one word. That detail is in the manifest because the aggregate claim, that Silesia is fine to redistribute, is true but is not checkable, and the per file one is.
+
+enwik8 is Wikipedia text, which is CC BY-SA 3.0 and, for anything written before June 2009, also GFDL. Both permit redistribution with attribution and under the same terms. The attribution is in the manifest and names the dump, its date, the editors of the English Wikipedia, and Matt Mahoney, who assembled the prefix for the Large Text Compression Benchmark.
+
+enwik9 is the same dump at ten times the size and is not mirrored yet. It can be added when there is a measurement that needs it, on the same terms.
 
 ## Public BI
 

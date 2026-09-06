@@ -156,8 +156,15 @@ def main() -> int:
         "licence note",
     )
     expect_clean(
-        "mirrored with a licence note",
+        "mirrored with a licence note and somewhere it is served from",
+        GOOD.replace('"fetch"', '"mirror"\nlicence_note = "Public domain"').replace(
+            "bytes = 1024", 'bytes = 1024\nurl = "https://ours.invalid/example.parquet"'
+        ),
+    )
+    expect_complaint(
+        "mirrored without saying where the bytes are served from",
         GOOD.replace('"fetch"', '"mirror"\nlicence_note = "Public domain"'),
+        "nothing says where",
     )
     expect_complaint(
         "no files at all",

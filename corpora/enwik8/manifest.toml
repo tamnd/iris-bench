@@ -1,0 +1,33 @@
+# enwik8, the first 100,000,000 bytes of an English Wikipedia XML dump from 3 March 2006. It is one
+# file and it is exactly one hundred million bytes, because that is the definition rather than a
+# coincidence: the Large Text Compression Benchmark and the Hutter Prize are stated over a prefix
+# of a fixed length, so a file that is a byte longer is not enwik8.
+#
+# Mirrored rather than fetched for the same reason as Silesia. The canonical copy is on a personal
+# site that has moved host at least once, and a benchmark whose input is a dead link stops being
+# reproducible on somebody else's schedule. The bytes are served from this repository's own release
+# assets and the address is on the entry, while `source` stays where the file came from.
+#
+# enwik9 is the same dump at 10^9 bytes and is not here yet. It is ten times the size for the same
+# shape of data, and it can be added when there is a measurement that needs it.
+
+[corpus]
+name = "enwik8"
+description = "The first 100,000,000 bytes of the English Wikipedia XML dump of 3 March 2006"
+source = "http://mattmahoney.net/dc/enwik8.zip"
+licence = "CC-BY-SA-3.0 OR GFDL-1.3-or-later"
+category = "mirror"
+licence_note = """
+English Wikipedia text is licensed under CC-BY-SA-3.0, and text written before June 2009, which is \
+all of this, is also available under the GFDL. Both permit redistribution with attribution and \
+under the same terms, and neither is affected by the file being a prefix rather than a whole dump, \
+because it is redistributed unmodified. The attribution: this is the first 100,000,000 bytes of \
+the English Wikipedia XML dump of 3 March 2006, contributed by the editors of the English \
+Wikipedia, and assembled into this form by Matt Mahoney for the Large Text Compression Benchmark.
+"""
+
+[[files]]
+path = "enwik8"
+blake3 = "ba3eb478ad88c752bab4fe01438461475e342f887fc00eeae82f062ca050fc7b"
+bytes = 100000000
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/enwik8"

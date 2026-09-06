@@ -1,0 +1,108 @@
+# The Silesia corpus, twelve files assembled in 2002 to be the general purpose compression
+# benchmark that the Calgary corpus had stopped being. Nothing here is text, or rather not only
+# text: it is a database dump, an X-ray image, a star catalogue, a dictionary, source code, two
+# binaries and three books, at sizes that were large when it was assembled and are small now.
+#
+# This is the first corpus in this repository that is mirrored rather than fetched, and the reason
+# is the address. Its home has moved at least twice and the current one is a personal page on a
+# university host, which is not a thing to build a decade of reproducibility on. The files are
+# served from this repository's own release assets and their addresses are on the entries. The
+# `source` field stays the place they came from, because that is the provenance, and a mirror that
+# loses track of where the data came from is worse than a dead link.
+#
+# What is mirrored is exactly what silesia.zip contains, unpacked and otherwise untouched. Every
+# file is the published size, which is the first thing that would have caught a bad unpack, and the
+# total is 211,938,580 bytes.
+#
+# There is no [assertions] block. These are not tabular files, so there is no row or column count
+# to assert, and the byte counts are the assertion.
+
+[corpus]
+name = "silesia"
+description = "The Silesia compression corpus, twelve files of mixed real data from 2002"
+source = "https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip"
+licence = "Mixed, one set of terms per file, see the licence note"
+category = "mirror"
+licence_note = """
+Silesia is published by Sebastian Deorowicz as a corpus for compression research and has been \
+redistributed publicly since 2002. Its twelve files arrive under their own terms rather than one \
+licence. dickens, reymont and webster are public domain texts. samba is Samba 2.2.3 source under \
+GPL-2.0-or-later, and source is what is redistributed here. mozilla is a tar of Mozilla 1.0 \
+executables under MPL-1.1, whose corresponding source for that release is still published by \
+Mozilla, which is what MPL-1.1 asks of anybody redistributing the binaries. ooffice is a library \
+from OpenOffice.org 1.01 under LGPL-2.1-or-later, on the same footing. mr, nci, osdb, sao, x-ray \
+and xml are public scientific and reference data published for use. Every one of those permits \
+redistribution unmodified, which is what happens here.
+"""
+
+[[files]]
+path = "dickens"
+blake3 = "48870dedfdc7ecb80319525074a9fe43a9dcda6a8cf2784e02bd77ed702fc58b"
+bytes = 10192446
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-dickens"
+
+[[files]]
+path = "mozilla"
+blake3 = "c9a15f28e73c61169ff11b617c86e1c651287f8525677ab63e65ce0284ecbd6d"
+bytes = 51220480
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-mozilla"
+
+[[files]]
+path = "mr"
+blake3 = "1609d2048388432aecc39f3034101e10a21391dedfefa4e1fde4fbbc166cfd24"
+bytes = 9970564
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-mr"
+
+[[files]]
+path = "nci"
+blake3 = "0553bbc07eaf974f3cba7f41e2c5ca00fb79f11ca3c1e26009f9a1429630c83d"
+bytes = 33553445
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-nci"
+
+[[files]]
+path = "ooffice"
+blake3 = "fff3e375068c713295e9e4b2f6b458263a6fdad9221ac440093ee6afb9149bf0"
+bytes = 6152192
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-ooffice"
+
+[[files]]
+path = "osdb"
+blake3 = "ffd81c8a89fa016ee54d5af100623e61b3b64ac716716b62d993bbd2ffa532ea"
+bytes = 10085684
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-osdb"
+
+[[files]]
+path = "reymont"
+blake3 = "c89378c3645a132428003401dae5341fc4cbd189b630d3b1bafd6cbb9c5ce818"
+bytes = 6627202
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-reymont"
+
+[[files]]
+path = "samba"
+blake3 = "0e55f092df42e7fba3b05942df333042faae6b6d5243ea79be3ac222c9af53c7"
+bytes = 21606400
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-samba"
+
+[[files]]
+path = "sao"
+blake3 = "c4020293b7bba9bc8cf4363806a2409e988b534bbd696eb91f1684666fa6ab5d"
+bytes = 7251944
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-sao"
+
+[[files]]
+path = "webster"
+blake3 = "94331ecc0e8037e1e41b01e3081429f4c072fb50080b9415f97f48c87cc123be"
+bytes = 41458703
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-webster"
+
+[[files]]
+path = "x-ray"
+blake3 = "5714e752b0c7449680d64934fb0a0a54e3d66818d29f1ed92dce2f0cb9d41482"
+bytes = 8474240
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-x-ray"
+
+[[files]]
+path = "xml"
+blake3 = "6c3c4996b605e2676d075f329c031e80fcb5012be4e3355e78eaf12f6654adef"
+bytes = 5345280
+url = "https://github.com/tamnd/iris-bench/releases/download/corpora-mirror-1/silesia-xml"
