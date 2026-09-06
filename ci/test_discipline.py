@@ -196,10 +196,84 @@ def check_override_cases() -> None:
         failures.append(f"a word that merely contains one: expected no complaint and got {said}")
 
 
+DRIVER = """
+use bench_driver::{Answer, Driver, DriverError, Load, Query, Rows, Setup};
+
+pub struct Example;
+
+impl Driver for Example {
+    fn name(&self) -> &'static str {
+        "example"
+    }
+
+    fn version(&self) -> String {
+        "1".to_owned()
+    }
+
+    fn prepare(&mut self, _setup: &Setup) -> Result<(), DriverError> {
+        Ok(())
+    }
+
+    fn load(&mut self, _load: &Load) -> Result<(), DriverError> {
+        Ok(())
+    }
+
+    fn run(&mut self, query: &Query) -> Result<Answer, DriverError> {
+        Ok(Rows::new().finish(query.ordered))
+    }
+}
+"""
+
+
+def driver_source(text: str | None) -> list[str]:
+    """Runs the driver source checks over one made up driver and returns what they said."""
+    before = list(discipline.failures)
+    discipline.failures.clear()
+    try:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = pathlib.Path(temporary) / "driver-example"
+            (directory / "src").mkdir(parents=True)
+            if text is not None:
+                (directory / "src" / "lib.rs").write_text(text, encoding="utf-8")
+            discipline.check_driver_source(directory)
+            return list(discipline.failures)
+    finally:
+        discipline.failures[:] = before
+
+
+def check_driver_source_cases() -> None:
+    said = driver_source(DRIVER)
+    if said:
+        failures.append(f"a driver that implements the trait: expected no complaint and got {said}")
+
+    said = driver_source(DRIVER.replace("impl Driver for Example", "impl Example"))
+    if not any("does not implement Driver" in one for one in said):
+        failures.append(f"a crate under drivers/ that implements nothing: expected a complaint and got {said}")
+
+    said = driver_source(None)
+    if not any("no src/lib.rs" in one for one in said):
+        failures.append(f"a driver with no source: expected a complaint and got {said}")
+
+    for name, line in (
+        ("a driver timing itself", "        let started = std::time::Instant::now();\n"),
+        ("a driver reaching for the wall clock", "        let started = SystemTime::now();\n"),
+    ):
+        said = driver_source(DRIVER.replace("        Ok(())\n", line + "        Ok(())\n", 1))
+        if not any("is a clock" in one for one in said):
+            failures.append(f"{name}: expected a complaint and got {said}")
+
+    # A driver's own tests may time things, because a test that asserts a load
+    # took no time is a test and not a measurement.
+    said = driver_source(DRIVER + "#[cfg(test)]\nmod tests {\n    use std::time::Instant;\n}\n")
+    if said:
+        failures.append(f"a clock inside a test module: expected no complaint and got {said}")
+
+
 def main() -> int:
     expect_clean("a complete manifest passes", GOOD)
     check_parts_cases()
     check_override_cases()
+    check_driver_source_cases()
 
     expect_complaint(
         "a manifest that disagrees with its directory",
