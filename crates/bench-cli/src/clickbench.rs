@@ -292,8 +292,19 @@ pub(crate) fn check(paths: &[PathBuf]) -> anyhow::Result<()> {
     let comparison = compare(&reports);
 
     println!("{} agreed", comparison.agreed.len());
-    for one in &comparison.disagreed {
-        println!("{} disagreed", one.query);
+
+    // Ten of the forty three do not pick out a single result, so two correct systems return
+    // different rows for them and both are right. Which ten and why is written down in
+    // bench_workload::clickbench, with the evidence, and it is a list somebody edits on purpose
+    // rather than a rule that lets today's disagreement excuse itself.
+    let (expected, real): (Vec<_>, Vec<_>) = comparison
+        .disagreed
+        .iter()
+        .partition(|one| clickbench::undetermined(&one.query).is_some());
+    for one in real.iter().chain(expected.iter()) {
+        let note = clickbench::undetermined(&one.query)
+            .map_or_else(String::new, |why| format!(", and {}", why.why()));
+        println!("{} disagreed{note}", one.query);
         for reading in &one.readings {
             println!(
                 "    {:<16} {} rows {}",
@@ -303,8 +314,17 @@ pub(crate) fn check(paths: &[PathBuf]) -> anyhow::Result<()> {
             );
         }
     }
-    for one in &comparison.unstable {
-        println!("{} disagreed with itself on {}", one.driver, one.query);
+    let (wobbly, churning): (Vec<_>, Vec<_>) = comparison
+        .unstable
+        .iter()
+        .partition(|one| clickbench::undetermined(&one.query).is_some());
+    for one in churning.iter().chain(wobbly.iter()) {
+        let note = if clickbench::undetermined(&one.query).is_some() {
+            ", which is the same tie seen from one system"
+        } else {
+            ""
+        };
+        println!("{} disagreed with itself on {}{note}", one.driver, one.query);
     }
     if !comparison.alone.is_empty() {
         println!(
@@ -321,8 +341,20 @@ pub(crate) fn check(paths: &[PathBuf]) -> anyhow::Result<()> {
         );
     }
 
-    anyhow::ensure!(comparison.clean(), "the systems did not agree");
-    println!("every query that more than one system answered got the same answer");
+    anyhow::ensure!(
+        real.is_empty() && churning.is_empty(),
+        "the systems did not agree about {} queries that have one answer",
+        real.len() + churning.len()
+    );
+    if expected.is_empty() && wobbly.is_empty() {
+        println!("every query that more than one system answered got the same answer");
+    } else {
+        println!(
+            "every query with one answer got the same answer, and {} of the ones without a single \
+             answer came back differently, which is what they do",
+            expected.len()
+        );
+    }
     Ok(())
 }
 

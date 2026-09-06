@@ -47,6 +47,49 @@
 //! `CONFIG.md` so that a corpus which one day arrives without those logical types is a thing
 //! somebody looks at again instead of a thing that quietly answers a different question.
 //!
+//! # Ten of the forty three do not have one answer
+//!
+//! Two systems that return different rows for the same query are normally one correct system and
+//! one that is fast because it did less. Ten of these forty three are not that. They are queries
+//! whose published text does not pick out a single result, so two correct systems return different
+//! rows and both are right, and a comparison that called that a failure would be reporting a
+//! property of the benchmark as a fault in an engine.
+//!
+//! This is not a category anything gets put in for disagreeing. Every entry below was run and
+//! looked at, the reason is a property of the published SQL or of the published setup rather than
+//! of the results, and `iris-bench clickbench answer` reproduces the evidence for any of them.
+//!
+//! Nine of the ten are ties under a `LIMIT`. The window the `LIMIT` returns is only determined when
+//! the ordering key tells the rows inside it apart from the rows just outside, and in these nine it
+//! does not. q17 has no `ORDER BY` at all and takes ten of many million groups. q23 and q24 order
+//! by `EventTime`, which is a second and not a row identity. q21, q31 and q32 order by a count over
+//! a grouping close to one row per group. q38, q39, q40 and q41 order by a count and then take ten
+//! rows at an offset of a hundred, a thousand or ten thousand, which lands the window deep in a
+//! tail where every remaining group has the same tiny count.
+//!
+//! What was checked, on the real corpus, is that both engines computed the same aggregate. For all
+//! six of the grouped ones the sequence of ordering key values is identical between the two, and
+//! the values are tied across the whole window: q31 and q41 return ten counts of one, q38 ten of
+//! two, q39 ten of fifteen, q32 four twos then six ones, and q40 has every value in it repeated at
+//! least twice so even its boundary sits inside a tie. Two engines returned the same counts and a
+//! different arbitrary ten of the rows holding them.
+//!
+//! The tenth is q23, and it is a different thing wearing the same clothes. It is `SELECT *`, and
+//! the two published setups do not produce the same table. `DuckDB`'s load uses `SELECT * REPLACE`,
+//! which converts `EventDate` where it stands, and `DataFusion`'s view uses `SELECT * EXCEPT` with
+//! the converted column appended, which moves `EventDate` from the fifth column to the hundred and
+//! fifth. `DuckDB` also converts the three timestamps and `DataFusion` leaves them as raw seconds.
+//! On the real corpus the two returned the same ten rows, and a hundred and two of the hundred and
+//! five columns matched exactly: the three that did not are `EventTime`, `ClientEventTime` and
+//! `LocalEventTime`, holding the same instants written two ways. So the rows agree and the
+//! rendering cannot, and that follows from carrying each entry's own setup rather than from
+//! anything either engine did.
+//!
+//! Note what this does not excuse. The other thirty three have to agree, and they do. An unlisted
+//! query that disagrees is still a hard failure, adding to the list is a change somebody has to
+//! make on purpose and defend, and a test in this module asserts the list is exactly these ten so
+//! that it cannot grow by accident.
+//!
 //! # What this module does not do
 //!
 //! It does not rewrite anything itself. If a system needs a rewrite that upstream has not
@@ -244,6 +287,57 @@ pub fn projection(driver: &str) -> Option<&'static str> {
     }
 }
 
+/// Why a published query does not pick out a single result.
+///
+/// Both of these are properties of what `ClickBench` publishes rather than of what any engine did,
+/// which is why they live here next to the queries and the setup scripts. The module doc has the
+/// evidence for every query that carries one.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Undetermined {
+    /// A `LIMIT` cuts a window whose ordering key does not tell the rows inside it apart from the
+    /// rows just outside, so which ten come back is the plan's choice and not the query's.
+    Tie,
+    /// The query returns every column, and the two published setups do not put the columns in the
+    /// same order or hold them in the same types, so the same rows cannot render the same way.
+    Setup,
+}
+
+impl Undetermined {
+    /// One line saying what this is, for a reader of a comparison.
+    #[must_use]
+    pub fn why(self) -> &'static str {
+        match self {
+            Self::Tie => "the LIMIT cuts a tie, so which rows come back is not decided by the query",
+            Self::Setup => {
+                "SELECT * over two setups that do not build the same table out of the same corpus"
+            }
+        }
+    }
+}
+
+/// Which of the forty three do not have one answer, and why.
+///
+/// Ten of them. This is a list rather than a rule because the property it stands for is not
+/// decidable from the SQL alone: whether an ordering key separates the rows a `LIMIT` cuts between
+/// depends on the data, and the corpus is pinned but the reasoning still has to be done by looking.
+/// So every entry was run on the real corpus and read, the module doc says what was seen, and
+/// `iris-bench clickbench answer` puts the same rows back on a terminal for anybody checking.
+///
+/// A list is also the point. A query that disagreed today cannot talk its way in here, because
+/// getting in is an edit somebody makes deliberately and defends, and the test below pins the whole
+/// set so that it does not grow while nobody is reading.
+#[must_use]
+pub fn undetermined(query: &str) -> Option<Undetermined> {
+    match query {
+        "q23" => Some(Undetermined::Setup),
+        "q17" | "q21" | "q24" | "q31" | "q32" | "q38" | "q39" | "q40" | "q41" => {
+            Some(Undetermined::Tie)
+        }
+        _ => None,
+    }
+}
+
 /// The workload, for one system's rewrite of the queries.
 ///
 /// # Panics
@@ -369,6 +463,55 @@ mod tests {
         assert_eq!(projection("datafusion"), Dialect::DataFusion.projection());
         assert_eq!(projection("duckdb"), Dialect::DuckDb.projection());
         assert_eq!(projection("nothing-by-that-name"), None);
+    }
+
+    #[test]
+    fn the_queries_without_one_answer_are_exactly_these_ten() {
+        // Pinned so the list cannot grow while nobody is reading. Every one of these was run on the
+        // real corpus and looked at, and a query that starts disagreeing tomorrow has to be added
+        // here on purpose with the same evidence rather than by loosening a rule.
+        let listed: Vec<String> = (0..QUERIES)
+            .map(|at| format!("q{at}"))
+            .filter(|id| undetermined(id).is_some())
+            .collect();
+        assert_eq!(
+            listed,
+            [
+                "q17", "q21", "q23", "q24", "q31", "q32", "q38", "q39", "q40", "q41"
+            ]
+        );
+        assert_eq!(undetermined("q0"), None);
+    }
+
+    #[test]
+    fn only_the_query_that_selects_every_column_blames_the_setup() {
+        // The two setups differ in where they put EventDate and in whether they convert the three
+        // timestamps, and the only way a query can see either of those is by asking for all of the
+        // columns. Any other query naming a converted column names it the same way on both sides.
+        for at in 0..QUERIES {
+            let id = format!("q{at}");
+            let sql = &workload(Dialect::DuckDb).queries[at].sql;
+            let selects_everything = sql.contains("SELECT * FROM");
+            assert_eq!(
+                undetermined(&id) == Some(Undetermined::Setup),
+                selects_everything,
+                "{id} is {sql}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_query_without_one_answer_cuts_a_window_short() {
+        // A tie only matters where something is thrown away. A query that returns its whole result
+        // hands back the same rows either way and the canonical form sorts them, so LIMIT is what
+        // every entry on the list has in common and a query without one could not qualify.
+        for at in 0..QUERIES {
+            let id = format!("q{at}");
+            if undetermined(&id).is_some() {
+                let sql = &workload(Dialect::DuckDb).queries[at].sql;
+                assert!(sql.contains("LIMIT"), "{id} is {sql}");
+            }
+        }
     }
 
     #[test]

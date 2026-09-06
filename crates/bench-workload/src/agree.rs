@@ -66,7 +66,14 @@ pub struct Comparison {
 }
 
 impl Comparison {
-    /// Whether anything here should stop a set of timings being published.
+    /// Whether every query that two systems both answered came back the same, both times.
+    ///
+    /// The strict reading, and the right one to start from. A workload can still have queries whose
+    /// published text does not pick out a single result, and then two correct systems differ and
+    /// this returns false about nothing. Which queries those are is the workload's business rather
+    /// than this module's, so a caller that has such a workload sorts its own disagreements out
+    /// against a list it can be held to. `bench_workload::clickbench::undetermined` is the one that
+    /// exists.
     #[must_use]
     pub fn clean(&self) -> bool {
         self.disagreed.is_empty() && self.unstable.is_empty()

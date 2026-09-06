@@ -66,6 +66,18 @@ Canonicalised is the load bearing word, because three systems asked the same que
 
 Two of the rules cost something and are worth stating. Floats are rendered to six significant digits, because two engines summing a hundred million values will not agree past that when one adds them in parallel partial sums and the other in order. Six digits survives that and still catches a hardcoded group count or an overflowed accumulator, neither of which is a seventh digit difference. What it gives up is a genuine small error, and that is the price of a digest, which cannot express a tolerance. Rows are sorted unless the query specified an order, because two systems that returned the same rows in a different order both answered the question that was asked, and a query that does specify an order gets that order checked.
 
+## Queries that do not have one answer
+
+Sorting an unordered result handles two systems returning the same rows in a different order. It does not handle a query that does not have one set of rows to return, and a published benchmark can contain those. Ten of ClickBench's forty three do.
+
+Nine of them put a LIMIT on top of an ordering that does not tell the rows inside the window apart from the rows just outside it, so two correct systems return a different arbitrary ten and neither is wrong. One of them asks for every column, and the two setups ClickBench publishes for the two systems here do not build the same table out of the same corpus, so the same rows cannot render the same way. What was seen on the real corpus, query by query, is in the module documentation for the workload.
+
+The rule for these is that they are named in advance, in code, one at a time, with the reason attached. A query is not excused because it disagreed. It is excused because somebody ran it, looked at what came back, wrote down why the benchmark does not determine it, and put it on a list that a test pins so it cannot grow while nobody is reading. Everything not on that list has to agree, and a disagreement there is still a hard failure that stops the timings being published.
+
+The same applies to a system that answers one query two different ways across its own runs. On a query with one answer that is a fault and it fails. On one of the ten it is the same tie seen from one system instead of two, and it is reported as that rather than counted twice.
+
+`iris-bench clickbench answer` puts the rows behind any of this back on a terminal, so none of it has to be taken on trust.
+
 ## Pre-registration
 
 Every claim this repository intends to test is registered before it is run, with the threshold that decides it. Rows carry a purpose field, either confirmatory or exploratory, and an exploratory row cannot be cited as a claim. A claim that was registered and not run shows in the ledger as pending, which makes quietly dropping an inconvenient result visible as a gap in a committed file.
