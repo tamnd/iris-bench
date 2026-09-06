@@ -18,6 +18,11 @@
 //! what the answers are, and the day the real corpus produces a disagreement it will be the same
 //! comparison code that says so.
 //!
+//! Made up has one limit worth naming. A query whose filter matches nothing returns nothing on both
+//! engines and agrees with itself, so four queries filtering on the word google were being checked
+//! by a comparison that could not fail. The fixture's addresses and titles carry that word now, and
+//! a test asserts each of the four comes back with rows.
+//!
 //! The types are `ClickBench`'s, though, and that is a correction rather than a detail. The create
 //! statement above is what the table looks like after `DuckDB` has loaded it, with `EventDate` as a
 //! date and three columns as timestamps. The published Parquet file this workload is really run on
@@ -170,18 +175,35 @@ fn all_forty_three_run_on_every_system_and_the_engines_agree() {
     );
 
     let comparison = compare(&reports);
+    // One disagreement, and it is the one the real corpus produces for the same reason. q23 asks
+    // for every column, and the two setups do not build the same table: DuckDB's load converts
+    // EventDate where it stands and DataFusion's view appends it, so the same rows come back with
+    // that column in a different place. It is on the published list of queries this benchmark does
+    // not determine, which is what makes it a known shape rather than a finding.
+    let disagreed: Vec<&str> = comparison
+        .disagreed
+        .iter()
+        .map(|one| one.query.as_str())
+        .collect();
+    assert_eq!(disagreed, ["q23"]);
+    assert_eq!(
+        clickbench::undetermined("q23"),
+        Some(clickbench::Undetermined::Setup)
+    );
+    // Nothing else is excused. Every other query on this fixture agrees outright, and it is the
+    // fixture's job to keep it that way: the values are shaped so that no count and no ordering key
+    // is tied, so none of the other nine on that list has anything to be undetermined about here.
+    for one in &comparison.agreed {
+        assert_ne!(one, "q23");
+    }
     assert!(
-        comparison.disagreed.is_empty(),
-        "the engines disagreed about {:?}",
-        comparison
-            .disagreed
-            .iter()
-            .map(|one| one.query.as_str())
-            .collect::<Vec<_>>(),
+        comparison.unstable.is_empty(),
+        "an engine answered its own query two ways: {:?}",
+        comparison.unstable,
     );
     // Every query was answered by both engines and by neither reader, so all forty three are
     // compared and none is in the alone or unanswered lists.
-    assert_eq!(comparison.agreed.len(), clickbench::QUERIES);
+    assert_eq!(comparison.agreed.len(), clickbench::QUERIES - 1);
     assert!(comparison.alone.is_empty());
     assert!(comparison.unanswered.is_empty());
 }
@@ -211,8 +233,16 @@ fn a_query_the_engines_answer_differently_would_be_caught() {
     }
 
     let comparison = compare(&[honest, fibbing]);
-    assert_eq!(comparison.disagreed.len(), 1);
-    assert_eq!(comparison.disagreed[0].query, "q0");
+    // q23 disagrees on this fixture for the published reason, so the assertion is not that there is
+    // exactly one disagreement. It is that the lie is the one disagreement nothing excuses, which
+    // is the check a caller does before it decides whether to publish the timings.
+    let real: Vec<&str> = comparison
+        .disagreed
+        .iter()
+        .map(|one| one.query.as_str())
+        .filter(|query| clickbench::undetermined(query).is_none())
+        .collect();
+    assert_eq!(real, ["q0"]);
     assert!(!comparison.clean());
 }
 
@@ -263,6 +293,44 @@ fn without_the_published_setup_the_seven_date_queries_fail() {
         ["q36", "q37", "q38", "q39", "q40", "q41", "q42"],
         "the fixture no longer stores EventDate the way the corpus does"
     );
+}
+
+#[test]
+fn the_four_queries_that_filter_on_google_have_rows_to_filter() {
+    // A query that returns no rows agrees with anything that also returned no rows, so four of the
+    // forty three were being checked by a comparison that could not have failed. The fixture's text
+    // now carries the word they filter on, and this is what stops it being taken back out by
+    // somebody tidying up made up values. The expected counts come from the fixture's shape: group
+    // zero has one row, group one has five and group two has fifteen.
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let file = write_hits(scratch.path());
+
+    let mut duckdb = driver_duckdb::DuckDb::new();
+    let report = measure(&mut duckdb, scratch.path(), &file);
+    let rows = |id: &str| {
+        let query = report
+            .queries
+            .iter()
+            .find(|query| query.id == id)
+            .expect("the workload has it");
+        match &query.outcome {
+            Outcome::Answered { runs } => runs[0].rows,
+            Outcome::Unsupported { .. } | Outcome::Failed { .. } => {
+                panic!("{id} was not answered")
+            }
+        }
+    };
+
+    // One count over the two google groups, so one row holding six.
+    assert_eq!(rows("q20"), 1);
+    // The same two groups, one row each, and their counts differ so the limit picks no favourites.
+    assert_eq!(rows("q21"), 2);
+    // Every title has the word, so this one is deciding on the address, and the address it drops is
+    // group zero's. Two rows out of three groups is the whole point of the assertion.
+    assert_eq!(rows("q22"), 2);
+    // The six rows of the two google groups, which is under the limit, and ordered by a column with
+    // a distinct value in every row.
+    assert_eq!(rows("q23"), 6);
 }
 
 #[test]
@@ -468,10 +536,14 @@ fn arrow(kind: &str) -> DataType {
 /// # What it is hiding
 ///
 /// The real corpus has ties, in the same queries, and no arrangement of a fixture makes that go
-/// away. What to do about them is the business of the milestone that compares digests on the real
-/// data, and it is written down here so that this test passing is not read as that problem being
-/// solved. The two known shapes are a group by with a limit and no order by at all, and an order by
-/// on a count where the tenth and eleventh group have the same one.
+/// away. That has since been settled on the real data rather than here: nine of the forty three cut
+/// a window out of an ordering that does not separate the rows either side of the cut, they are
+/// named in `bench_workload::clickbench::undetermined` with the evidence for each, and a fixture
+/// shaped to have no ties cannot show any of it. So this test passing is not that problem being
+/// solved, and it never was.
+///
+/// The one thing on that list this fixture does reproduce is q23, because its reason is the two
+/// published setups rather than the data, and the setups are the same here as on the corpus.
 fn column(field: &Field) -> ArrayRef {
     let shape = shape();
     match field.data_type() {
@@ -542,13 +614,43 @@ fn shape() -> Vec<(usize, usize)> {
 ///
 /// The lengths are all different, because the workload orders by `AVG(length(URL))` in two places
 /// and equal lengths there are the same tie the counts were shaped to avoid.
+///
+/// # Why some of these say google
+///
+/// Four of the forty three filter on the word, three on `URL LIKE '%google%'` and one on
+/// `Title LIKE '%Google%'` with `URL NOT LIKE '%.google.%'` next to it. A fixture whose text never
+/// contains it answers all four with no rows, and four queries that return nothing agree with each
+/// other whatever either engine did with them. That is the shape of a test that cannot fail, so the
+/// word is in the fixture on purpose and it is placed so that each clause has something to do.
+///
+/// Group zero is `www.google.org`, which matches `%google%` and also matches `%.google.%`, so it is
+/// the row the fourth query has to drop. Group one is `www.google1.org`, which matches the first
+/// and not the second, so it is the row that has to survive. Group two has no google in its address
+/// at all and is what the first three have to leave behind. Every title carries the word, so the
+/// fourth query is deciding on the address rather than on nothing.
 fn text(name: &str, group: usize) -> String {
     let tail = "p".repeat(group + 1);
     match name {
         // The two the workload runs a regular expression over, so they have to look like addresses.
         // The pattern wants a scheme, an optional www, a host and a path, and a string that does not
         // match comes back whole, which is a different answer rather than a wrong one.
-        "URL" | "Referer" => format!("http://www.example{group}.org/{tail}"),
+        "URL" | "Referer" => format!("http://www.{}/{tail}", host(group)),
+        // Every group, so that the query wanting a title and not a google address is choosing on
+        // the address. Lengths stay different because the tail is still the group's own.
+        "Title" => format!("Google-{tail}"),
         _ => format!("{name}-{tail}"),
+    }
+}
+
+/// The host of one group's address.
+///
+/// Written out rather than generated, because the three differ in what they are for and a formula
+/// producing them would hide that. The lengths are twenty three, twenty five and twenty seven once
+/// the scheme and the tail are on, which keeps `AVG(length(URL))` different in every group.
+fn host(group: usize) -> &'static str {
+    match group {
+        0 => "google.org",
+        1 => "google1.org",
+        _ => "example2.org",
     }
 }
