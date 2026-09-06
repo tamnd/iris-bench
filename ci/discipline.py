@@ -69,6 +69,7 @@ MANIFEST_FIELDS = {
         "arguments",
         "version",
         "version_arguments",
+        "platforms",
         "environment",
     },
     "assertions": {"rows", "columns"},
@@ -313,6 +314,24 @@ def check_generator(name: str, corpus: dict, generator: dict | None) -> None:
 
     if not isinstance(generator.get("arguments", []), list):
         fail(f"corpus {name}: the generator's arguments are not a list")
+
+    # The digests of a generated corpus are of output somebody watched a generator
+    # write on a particular machine, and a generator that writes different bytes
+    # elsewhere is not hypothetical. Naming the platforms turns that into a refusal
+    # with a reason instead of a digest mismatch with no explanation in it.
+    platforms = generator.get("platforms", [])
+    if not isinstance(platforms, list) or not platforms:
+        fail(
+            f"corpus {name}: the generator has no platforms, so nothing says where its"
+            f" output was shown to reproduce"
+        )
+    else:
+        for platform in platforms:
+            if not isinstance(platform, str) or not platform.strip() or platform.strip() != platform.lower():
+                fail(
+                    f"corpus {name}: the generator names {platform!r} as a platform, and"
+                    f" platforms are spelled the way std::env::consts::OS spells them"
+                )
 
     environment = generator.get("environment", {})
     if not isinstance(environment, dict):

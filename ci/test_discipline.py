@@ -46,6 +46,7 @@ program = "example-gen"
 arguments = ["-s", "1"]
 version = "1.0.0"
 version_arguments = ["-h"]
+platforms = ["linux", "macos"]
 
 [generator.environment]
 OUT = "{output}"
@@ -246,6 +247,16 @@ def main() -> int:
         "a generator field this format does not have",
         GENERATED.replace("version =", 'versions = "nearly right"\nversion ='),
         "'versions'",
+    )
+    expect_complaint(
+        "a generator that names no platforms",
+        GENERATED.replace('platforms = ["linux", "macos"]', "platforms = []"),
+        "shown to reproduce",
+    )
+    expect_complaint(
+        "a platform spelled some other way than the one Rust reports",
+        GENERATED.replace('"macos"', '"macOS"'),
+        "std::env::consts::OS",
     )
     expect_complaint(
         "a generator environment that is not strings",

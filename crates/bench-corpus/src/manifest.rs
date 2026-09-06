@@ -128,6 +128,13 @@ pub struct Generator {
     /// and `{program_directory}` is the directory the program itself was found in.
     #[serde(default)]
     pub environment: std::collections::BTreeMap<String, String>,
+    /// The operating systems on which this generator has been shown to write the pinned bytes.
+    ///
+    /// Spelled as `std::env::consts::OS` spells them, so `linux`, `macos` and `windows`. Generating
+    /// somewhere else is refused rather than attempted, because the digests in the manifest are of
+    /// output from these platforms and a platform that writes different bytes produces a mismatch
+    /// with nothing in it to say that the platform is the reason.
+    pub platforms: Vec<String>,
 }
 
 impl Generator {
@@ -427,6 +434,25 @@ impl Generator {
                     .to_owned(),
             ));
         }
+        // A generated corpus is pinned to bytes somebody watched a generator write somewhere. This
+        // is where that gets said out loud. An empty list is refused rather than read as anywhere,
+        // because anywhere is a claim about platforms nobody has run, and the one platform that is
+        // known to write different bytes for the same generator is not hypothetical.
+        if self.platforms.is_empty() {
+            return Err(invalid(
+                "the generator has no platforms, so nothing says where its output was shown to \
+                 reproduce"
+                    .to_owned(),
+            ));
+        }
+        for platform in &self.platforms {
+            if platform.trim().is_empty() || platform.trim() != platform.to_ascii_lowercase() {
+                return Err(invalid(format!(
+                    "the generator names {platform:?} as a platform, and platforms are spelled the \
+                     way std::env::consts::OS spells them"
+                )));
+            }
+        }
         Ok(())
     }
 }
@@ -623,6 +649,7 @@ mod tests {
                      program = \"example-gen\"\n\
                      arguments = [\"-s\", \"1\"]\n\
                      version = \"1.0.0\"\n\
+                     platforms = [\"linux\", \"macos\"]\n\
                      {extra}\n\
                      [[files]]"
                 ),
@@ -637,6 +664,23 @@ mod tests {
         assert_eq!(generator.arguments, ["-s", "1"]);
         // Not written in the manifest above, so this is the default arriving.
         assert_eq!(generator.version_arguments, ["-h"]);
+        assert_eq!(generator.platforms, ["linux", "macos"]);
+    }
+
+    #[test]
+    fn a_generator_that_names_no_platforms_is_refused() {
+        let text = generated("").replace("[\"linux\", \"macos\"]", "[]");
+        let error = Manifest::parse(&text).unwrap_err();
+        assert!(format!("{error}").contains("shown to reproduce"));
+    }
+
+    #[test]
+    fn a_platform_spelled_some_other_way_is_refused() {
+        // The check is against std::env::consts::OS, which says macos rather than macOS, so a
+        // manifest that says macOS names a platform no machine will ever report being.
+        let text = generated("").replace("\"macos\"", "\"macOS\"");
+        let error = Manifest::parse(&text).unwrap_err();
+        assert!(format!("{error}").contains("std::env::consts::OS"));
     }
 
     #[test]
