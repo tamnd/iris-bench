@@ -235,6 +235,37 @@ enum ClickbenchCommand {
         #[arg(required = true, num_args = 2..)]
         records: Vec<PathBuf>,
     },
+    /// Read records back and say whether any system is out of line with the public leaderboard.
+    Calibrate {
+        /// The records from one run, two or more, all from the same machine.
+        #[arg(required = true, num_args = 2..)]
+        records: Vec<PathBuf>,
+        /// Which column to compare. Hot isolates the engine from the machine's disk, which is why
+        /// it is the default.
+        #[arg(long, value_enum, default_value_t = Which::Hot)]
+        column: Which,
+    },
+}
+
+/// Which column of the protocol to calibrate against, as a command line argument.
+///
+/// A separate type from `bench_workload::Column` so that clap's spelling of the choices is this
+/// crate's business rather than something a library crate has to know about.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, clap::ValueEnum)]
+enum Which {
+    /// The first of the three runs.
+    Cold,
+    /// The best of the runs after the first.
+    Hot,
+}
+
+impl From<Which> for bench_workload::Column {
+    fn from(which: Which) -> Self {
+        match which {
+            Which::Cold => Self::Cold,
+            Which::Hot => Self::Hot,
+        }
+    }
 }
 
 /// What a caller needs the machine to be good enough for.
@@ -372,6 +403,9 @@ fn main() -> anyhow::Result<()> {
                 anyway,
             ),
             ClickbenchCommand::Check { records } => clickbench::check(&records),
+            ClickbenchCommand::Calibrate { records, column } => {
+                clickbench::calibrate(&records, column.into())
+            }
         },
         Command::Corpus {
             name,

@@ -17,9 +17,10 @@
 //! # What the summary does not do
 //!
 //! It prints a geometric mean over the queries that were answered and it prints how many those
-//! were. It does not compare that number to the public leaderboard, because that comparison needs
-//! the leaderboard's own numbers for the same machine class and a band to judge them against, and
-//! that is its own piece of work rather than a line of arithmetic hidden in a print statement.
+//! were. It does not compare that number to the public leaderboard. That comparison needs more than
+//! one driver, because a single driver on its own cannot tell a misconfiguration apart from a
+//! slower machine, so it lives in `calibrate` where all the records of a run are read together and
+//! not in a line of arithmetic hidden in the summary of one of them.
 
 use std::path::{Path, PathBuf};
 
@@ -27,7 +28,8 @@ use anyhow::Context as _;
 use bench_driver::{Driver, Format, Load, Session, Setup};
 use bench_env::{Capture, Permit};
 use bench_run::{DropCaches, Schedule, Scheduled, Seed};
-use bench_workload::{Outcome, Warm, clickbench, compare};
+use bench_workload::leaderboard::{self, Calibration, Column, Standing};
+use bench_workload::{Outcome, Warm, clickbench, compare, geomean};
 
 /// One run of the workload against one system, and everything needed to read it later.
 #[derive(Clone, PartialEq, Debug, serde::Serialize, serde::Deserialize)]
@@ -171,14 +173,7 @@ pub(crate) fn run(
 /// Separate from the run because the systems are run one at a time, often on different days, and a
 /// comparison that could only happen inside a run would be a comparison that never happened.
 pub(crate) fn check(paths: &[PathBuf]) -> anyhow::Result<()> {
-    let mut records = Vec::with_capacity(paths.len());
-    for path in paths {
-        let text =
-            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
-        let record: Record = serde_json::from_str(&text)
-            .with_context(|| format!("{} is not a clickbench record", path.display()))?;
-        records.push(record);
-    }
+    let records = read(paths)?;
 
     let environments: Vec<&str> = records
         .iter()
@@ -230,6 +225,115 @@ pub(crate) fn check(paths: &[PathBuf]) -> anyhow::Result<()> {
     anyhow::ensure!(comparison.clean(), "the systems did not agree");
     println!("every query that more than one system answered got the same answer");
     Ok(())
+}
+
+/// Reads several records back and says whether any system is out of line with the leaderboard.
+///
+/// Every record from one run goes in at once, because the machine here is not the machine upstream
+/// used and the only way to tell a misconfigured driver from a slower machine is to see whether the
+/// other drivers moved with it. `bench_workload::leaderboard` holds the published numbers and does
+/// the arithmetic; this prints it.
+pub(crate) fn calibrate(paths: &[PathBuf], column: Column) -> anyhow::Result<()> {
+    let records = read(paths)?;
+    let environments: Vec<&str> = records
+        .iter()
+        .map(|record| record.environment.as_str())
+        .collect();
+    anyhow::ensure!(
+        environments.windows(2).all(|pair| pair[0] == pair[1]),
+        "these records are from different environments, and a machine factor estimated across two \
+         machines is not a machine factor"
+    );
+    if column == Column::Cold && !records.iter().all(was_cold) {
+        println!("the page cache was not dropped everywhere, so the cold column is not cold here");
+    }
+
+    let reports: Vec<&bench_workload::Report> = records
+        .iter()
+        .map(|record| &record.scheduled.report)
+        .collect();
+    let calibration = Calibration::new(&reports, column)
+        .context("no driver in these records has a published result to compare against")?;
+
+    println!();
+    println!(
+        "{:<16} {:>10} {:>10} {:>8} {:>8}  reference",
+        "driver",
+        format!("ours {column}"),
+        "theirs",
+        "ratio",
+        "drift"
+    );
+    for standing in &calibration.standings {
+        let published = standing.reference.published();
+        println!(
+            "{:<16} {:>9.4}s {:>9.4}s {:>7.2}x {:>7.0}%  {} on {} {}",
+            standing.driver,
+            standing.ours,
+            standing.theirs,
+            standing.ratio,
+            calibration.drift(standing) * 100.0,
+            standing.system,
+            standing.machine,
+            published.date,
+        );
+    }
+    for driver in &calibration.unmatched {
+        println!("{driver:<16} no published result, so nothing to compare it against");
+    }
+    println!();
+    println!(
+        "this machine is {:.2}x the published numbers, and a driver is in band within {:.0}% of \
+         that",
+        calibration.machine,
+        leaderboard::BAND * 100.0
+    );
+
+    for standing in calibration.outside() {
+        println!();
+        println!(
+            "{} is {:.0}% off the shared factor, which is a misconfiguration until somebody shows \
+             it is not",
+            standing.driver,
+            calibration.drift(standing) * 100.0
+        );
+        worst(standing);
+    }
+
+    anyhow::ensure!(calibration.clean(), "a driver is outside the band");
+    println!("every driver with a published result is inside the band");
+    Ok(())
+}
+
+/// Prints the queries furthest out of line with the driver's own ratio.
+///
+/// A failed gate is only actionable if it names something. A driver that is uniformly slow and a
+/// driver that is fine except for four queries are the same number at the top of the table and
+/// completely different problems underneath it.
+fn worst(standing: &Standing) {
+    println!(
+        "{:<6} {:>10} {:>10} {:>8}",
+        "query", "ours", "theirs", "relative"
+    );
+    for point in standing.points.iter().take(5) {
+        println!(
+            "{:<6} {:>9.4}s {:>9.4}s {:>7.1}x",
+            point.id, point.ours, point.theirs, point.relative
+        );
+    }
+}
+
+/// Reads records off disk, in the order they were named.
+fn read(paths: &[PathBuf]) -> anyhow::Result<Vec<Record>> {
+    let mut records = Vec::with_capacity(paths.len());
+    for path in paths {
+        let text =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+        let record: Record = serde_json::from_str(&text)
+            .with_context(|| format!("{} is not a clickbench record", path.display()))?;
+        records.push(record);
+    }
+    Ok(records)
 }
 
 /// Turns a name into a system.
@@ -312,40 +416,9 @@ fn was_cold(record: &Record) -> bool {
         .all(|query| query.cache.is_cold())
 }
 
-/// The geometric mean, or nothing when there is nothing to average.
-///
-/// Taken in log space because forty three durations in nanoseconds multiplied together overflow an
-/// `f64` long before the root is taken.
-fn geomean(values: impl Iterator<Item = f64>) -> Option<f64> {
-    let mut sum = 0.0;
-    let mut count = 0u32;
-    for value in values {
-        if value <= 0.0 {
-            return None;
-        }
-        sum += value.ln();
-        count += 1;
-    }
-    (count > 0).then(|| (sum / f64::from(count)).exp())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_geometric_mean_is_the_geometric_mean() {
-        let mean = geomean([1.0, 4.0, 16.0].into_iter()).unwrap();
-        assert!((mean - 4.0).abs() < 1e-9, "{mean}");
-    }
-
-    #[test]
-    fn nothing_to_average_is_not_a_zero() {
-        assert!(geomean(std::iter::empty()).is_none());
-        // A zero duration would send the log to negative infinity and the mean to zero, which reads
-        // as an infinitely fast system rather than as the broken clock it is.
-        assert!(geomean([1.0, 0.0].into_iter()).is_none());
-    }
 
     #[test]
     fn a_name_with_no_driver_is_refused_rather_than_defaulted() {
