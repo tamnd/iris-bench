@@ -2422,14 +2422,13 @@ dependencies = [
 
 [[package]]
 name = "iris-source"
-version = "0.5.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ca1bf6d94e81358118deebc4c8dd3e860bd4265a7cf67cc2d6fa1fea52eb48a"
+checksum = "dba6239b42b76bb7569ceb7aea3a66f3156175571589259f332d7c439ab9d2e7"
 dependencies = [
  "bytes",
  "libc",
  "thiserror",
- "tracing",
  "windows-sys 0.61.2",
 ]
 
