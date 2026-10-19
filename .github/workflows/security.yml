@@ -118,7 +118,7 @@ jobs:
       # tags are exact versions only, so `v2` resolves to nothing and the job fails at the point it
       # tries to download the action. Bumping this by hand is the cost of that, and it is a smaller
       # cost than dropping the check.
-      - uses: ossf/scorecard-action@v2.4.4
+      - uses: ossf/scorecard-action@v2.5.0
         with:
           results_file: results.sarif
           results_format: sarif
